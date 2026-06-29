@@ -22,6 +22,7 @@
     "contact_reflection": "A subtle mirrored reflection of the generated character texture is compressed into the floor plane and follows the projected foot anchor for premium grounding.",
     "contact_pressure": "Code-generated foot/floor contact pressure deepens the character's grounding while avoiding ritual-circle, stage-mark, UI, or badge language.",
     "surface_resonance": "Code-generated floor surface resonance combines multiply depth and additive micro-reflections for premium wet/specular material without washing the scene pale.",
+    "black_glass_caustics": "Code-generated low floor caustics and dark-glass facets add refracted premium tension under/around the character without ritual-circle, reward, streamer, or party-light language.",
     "character_rim": "Subtle dual-tone blurred copies of the generated character texture sit behind the main sprite for premium silhouette separation without changing pose or anatomy.",
     "subject_lustre": "Code-generated pose-locked micro-glints live on the character's costume detail, adding premium motion without UI, reward, badge, or stage-light language.",
     "lens_fringe": "Code-generated edge-only prismatic lens fringe follows the active camera rail, adding optical depth while protecting the character and clarity lane.",

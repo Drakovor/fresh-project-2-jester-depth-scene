@@ -271,6 +271,9 @@ floorVeilLayer.addChild(floorGleam);
 const surfaceResonance = makeSurfaceResonanceSystem();
 floorVeilLayer.addChild(surfaceResonance.container);
 
+const blackGlassCaustics = makeBlackGlassCausticsSystem();
+floorVeilLayer.addChild(blackGlassCaustics.container);
+
 const cinematicDepthFrame = new Sprite(textures.depthOccluder);
 cinematicDepthFrame.anchor.set(0.5);
 cinematicDepthFrame.alpha = 0.46;
@@ -587,6 +590,7 @@ function animateScene(dt) {
   floorVeil.alpha = 0.16 + breathe * 0.035;
   floorGleam.alpha = 0.15 + breathe * 0.09 + Math.abs(lookY) * 0.04;
   surfaceResonance.update(t, w, h, character, lookX, lookY, orbit.axis, breathe, slowPulse, portraitFactor);
+  blackGlassCaustics.update(t, w, h, character, lookX, lookY, orbit.axis, breathe, slowPulse, portraitFactor);
   cinematicDepthFrame.alpha = 0.36 + slowPulse * 0.06 + Math.abs(lookX) * 0.026 + portraitFactor * 0.05;
   cinematicDepthFrame.position.set(w * 0.5 + lookX * w * 0.016, h * 0.5 + lookY * h * 0.012);
   cinematicDepthFrame.scale.set(cinematicDepthFrame.baseScale * (1.002 + Math.abs(lookX) * 0.01));
@@ -650,6 +654,9 @@ function animateScene(dt) {
   document.body.dataset.surfaceResonanceMode = 'scene-anchored-surface-resonance';
   document.body.dataset.surfaceResonanceAxis = orbit.axis;
   document.body.dataset.surfaceResonanceAlpha = surfaceResonance.alpha.toFixed(3);
+  document.body.dataset.blackGlassCausticsMode = 'black-glass-caustics';
+  document.body.dataset.blackGlassCausticsAxis = orbit.axis;
+  document.body.dataset.blackGlassCausticsAlpha = blackGlassCaustics.alpha.toFixed(3);
   document.body.dataset.characterRimMode = 'dual-tone-silhouette-separation';
   document.body.dataset.characterRimAlpha = `${characterRimWarm.alpha.toFixed(3)},${characterRimCool.alpha.toFixed(3)}`;
   document.body.dataset.subjectLustreMode = 'pose-locked-micro-lustre';
@@ -1177,6 +1184,135 @@ function drawSurfaceResonance(shade, glints, slivers, t, w, h, subject, lookX, l
     glints.lineStyle(0.5 + p * 0.55 + active * 0.28, color, arcAlpha);
     glints.moveTo(left, y);
     glints.quadraticCurveTo(controlX, controlY, right, y + ry * 0.38);
+  }
+
+  return alpha;
+}
+
+function makeBlackGlassCausticsSystem() {
+  const container = new Container();
+  const shade = new Graphics();
+  const glints = new Graphics();
+  shade.blendMode = BLEND_MODES.MULTIPLY;
+  glints.blendMode = BLEND_MODES.ADD;
+  container.addChild(shade, glints);
+
+  const rng = createRng('black-glass-caustics');
+  const threads = [];
+  const facets = [];
+
+  for (let i = 0; i < 46; i += 1) {
+    threads.push({
+      lane: randRange(rng, -1, 1),
+      depth: randRange(rng, 0.08, 1),
+      reach: randRange(rng, 0.018, 0.078),
+      phase: randRange(rng, 0, Math.PI * 2),
+      lean: randRange(rng, -0.16, 0.16),
+      color: i % 5 === 0 ? 0xbcffb0 : i % 3 === 0 ? 0xffa25d : 0x9d63e5,
+    });
+  }
+
+  for (let i = 0; i < 18; i += 1) {
+    facets.push({
+      side: i % 2 === 0 ? -1 : 1,
+      depth: randRange(rng, 0.12, 0.92),
+      lane: randRange(rng, 0.18, 0.86),
+      phase: randRange(rng, 0, Math.PI * 2),
+      color: i % 4 === 0 ? 0xffa25d : i % 4 === 1 ? 0xbcffb0 : 0x9d63e5,
+    });
+  }
+
+  return {
+    container,
+    alpha: 0,
+    update(t, w, h, subject, lookX, lookY, axis, breathe, slowPulse, portraitFactor) {
+      this.alpha = drawBlackGlassCaustics(shade, glints, threads, facets, t, w, h, subject, lookX, lookY, axis, breathe, slowPulse, portraitFactor);
+    },
+  };
+}
+
+function drawBlackGlassCaustics(shade, glints, threads, facets, t, w, h, subject, lookX, lookY, axis, breathe, slowPulse, portraitFactor) {
+  const active = axis === 'x'
+    ? Math.min(1, Math.abs(lookX) / CAMERA.orbitLimitX)
+    : axis === 'y'
+      ? Math.min(1, Math.abs(lookY) / CAMERA.orbitLimitY)
+      : 0;
+  const footY = subject.displayFootY - subject.sprite.texture.height * 0.012 * subject.baseScale;
+  const floorX = subject.displayCenterX;
+  const floorY = footY + h * 0.044 + lookY * h * 0.008;
+  const alpha = clamp(0.066 + breathe * 0.018 + active * 0.038 - portraitFactor * 0.018, 0.048, 0.128);
+  const glazeAlpha = clamp(0.09 + active * 0.05 + (1 - breathe) * 0.018 - portraitFactor * 0.022, 0.065, 0.148);
+  const portraitShade = 1 - portraitFactor * 0.78;
+
+  shade.clear();
+  glints.clear();
+  shade.alpha = glazeAlpha;
+  glints.alpha = alpha;
+
+  shade.beginFill(0x020104, 0.44 * portraitShade);
+  shade.drawEllipse(floorX + lookX * w * 0.01, floorY + h * 0.095, w * 0.42, h * 0.092);
+  shade.endFill();
+
+  for (const side of [-1, 1]) {
+    shade.beginFill(0x030106, (0.22 + active * 0.07) * portraitShade);
+    shade.drawPolygon([
+      floorX + side * w * 0.07,
+      floorY + h * 0.018,
+      floorX + side * w * (0.28 + active * 0.04),
+      floorY + h * (0.074 + Math.max(0, lookY) * 0.022),
+      floorX + side * w * (0.48 + active * 0.05),
+      floorY + h * 0.238,
+      floorX + side * w * 0.18,
+      floorY + h * 0.182,
+    ]);
+    shade.endFill();
+  }
+
+  for (const thread of threads) {
+    const depthT = thread.depth;
+    const lane = thread.lane + lookX * 0.05;
+    const centerSoftener = clamp(Math.abs(lane) * 1.35 + depthT * 0.34, 0.2, 1);
+    const wave = Math.max(0, Math.sin(t * (0.22 + depthT * 0.18) + thread.phase));
+    const x0 = floorX + lane * w * (0.055 + depthT * 0.29) + lookX * w * (0.005 + depthT * 0.01);
+    const y0 = floorY + h * (0.012 + depthT * 0.14 + Math.max(0, lookY) * 0.028);
+    const len = w * thread.reach * (0.65 + active * 0.48 + wave * 0.18);
+    const rise = h * (0.006 + depthT * 0.015 + wave * 0.006);
+    const colorSoftener = thread.color === 0xbcffb0 ? 0.58 : 1;
+    const localAlpha = (0.018 + wave * 0.055 + slowPulse * 0.012 + active * 0.016) * centerSoftener * colorSoftener;
+
+    glints.lineStyle(0.42 + depthT * 0.95 + active * 0.24, thread.color, localAlpha);
+    glints.moveTo(x0 - len, y0);
+    glints.bezierCurveTo(
+      x0 - len * thread.lean,
+      y0 - rise,
+      x0 + len * (0.26 + thread.lean),
+      y0 + rise * 0.14,
+      x0 + len * 0.92,
+      y0 + h * 0.004,
+    );
+  }
+
+  for (const facet of facets) {
+    const wave = Math.max(0, Math.sin(t * 0.28 + facet.phase));
+    const sidePull = facet.side * w * (0.045 + active * 0.018);
+    const x = floorX + (facet.lane - 0.5) * w * (0.16 + facet.depth * 0.42) + sidePull + lookX * w * 0.01;
+    const y = floorY + h * (0.022 + facet.depth * 0.17 + Math.max(0, lookY) * 0.018);
+    const size = w * (0.004 + facet.depth * 0.006 + wave * 0.004);
+    const squash = h * (0.004 + facet.depth * 0.005);
+    const alphaFacet = (0.018 + wave * 0.048 + active * 0.012) * (facet.color === 0xbcffb0 ? 0.54 : 1);
+
+    glints.beginFill(facet.color, alphaFacet);
+    glints.drawPolygon([
+      x,
+      y - squash,
+      x + facet.side * size,
+      y,
+      x,
+      y + squash,
+      x - facet.side * size * 0.72,
+      y,
+    ]);
+    glints.endFill();
   }
 
   return alpha;

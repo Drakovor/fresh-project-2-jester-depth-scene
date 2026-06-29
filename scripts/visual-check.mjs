@@ -437,6 +437,9 @@ function evaluateQualityGates(report) {
       assertGate(failures, sample.surfaceResonanceMode === 'scene-anchored-surface-resonance', `${name}/${sample.sample}: surface resonance mode is ${sample.surfaceResonanceMode}`);
       assertGate(failures, sample.surfaceResonanceAxis === sample.cameraAxis, `${name}/${sample.sample}: surface resonance axis ${sample.surfaceResonanceAxis} does not match camera ${sample.cameraAxis}`);
       assertGate(failures, sample.surfaceResonanceAlpha >= 0.08 && sample.surfaceResonanceAlpha <= 0.16, `${name}/${sample.sample}: surface resonance alpha out of range (${sample.surfaceResonanceAlpha})`);
+      assertGate(failures, sample.blackGlassCausticsMode === 'black-glass-caustics', `${name}/${sample.sample}: black glass caustics mode is ${sample.blackGlassCausticsMode}`);
+      assertGate(failures, sample.blackGlassCausticsAxis === sample.cameraAxis, `${name}/${sample.sample}: black glass caustics axis ${sample.blackGlassCausticsAxis} does not match camera ${sample.cameraAxis}`);
+      assertGate(failures, sample.blackGlassCausticsAlpha >= 0.04 && sample.blackGlassCausticsAlpha <= 0.14, `${name}/${sample.sample}: black glass caustics alpha out of range (${sample.blackGlassCausticsAlpha})`);
       assertGate(failures, sample.characterRimMode === 'dual-tone-silhouette-separation', `${name}/${sample.sample}: character rim mode is ${sample.characterRimMode}`);
       assertGate(failures, isAlphaPairInRange(sample.characterRimAlpha, 0.024, 0.072), `${name}/${sample.sample}: character rim alpha out of range (${sample.characterRimAlpha})`);
       assertGate(failures, sample.subjectLustreMode === 'pose-locked-micro-lustre', `${name}/${sample.sample}: subject lustre mode is ${sample.subjectLustreMode}`);
@@ -666,6 +669,9 @@ async function readSceneState(page, sample) {
       surfaceResonanceMode: document.body.dataset.surfaceResonanceMode,
       surfaceResonanceAxis: document.body.dataset.surfaceResonanceAxis,
       surfaceResonanceAlpha: Number(document.body.dataset.surfaceResonanceAlpha),
+      blackGlassCausticsMode: document.body.dataset.blackGlassCausticsMode,
+      blackGlassCausticsAxis: document.body.dataset.blackGlassCausticsAxis,
+      blackGlassCausticsAlpha: Number(document.body.dataset.blackGlassCausticsAlpha),
       characterRimMode: document.body.dataset.characterRimMode,
       characterRimAlpha: document.body.dataset.characterRimAlpha,
       subjectLustreMode: document.body.dataset.subjectLustreMode,

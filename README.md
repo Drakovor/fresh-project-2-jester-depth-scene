@@ -52,6 +52,7 @@ No old assets are required. If those files are missing, the app renders a proced
 - The scene-anchored contact reflection stays subtle and floor-bound so the character feels grounded without becoming a duplicated figure.
 - Scene-anchored contact pressure may deepen the foot/floor contact, but must stay under the character and never become a ritual circle, stage mark, or UI highlight.
 - Scene-anchored surface resonance may add wet/specular floor material and subtle private tension, but it must keep a dark contrast base and never wash the scene pale.
+- Black-glass caustics may add low floor iridescence and refracted tension, but it must stay under/around the character and never become a ritual circle, reward glow, or party light.
 - Dual-tone rim light may separate the character from the room, but must stay subtle and locked to the same pose/anchor as the character sprite.
 - Pose-locked micro-lustre may add tiny living glints to costume details, but must follow the character pose and remain below visible UI/reward/badge intensity.
 - Ambient particles, cloth strands, haze, sparks, glass marks, living wall/floor signals, and signature floor circuits use named deterministic seeds for a stable premium render.
