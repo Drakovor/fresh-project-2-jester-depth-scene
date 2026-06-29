@@ -7,6 +7,7 @@ import {
   Graphics,
   Sprite,
   Texture,
+  TilingSprite,
 } from 'pixi.js';
 import './styles.css';
 
@@ -33,6 +34,7 @@ document.getElementById('scene').appendChild(app.view);
 window.__sceneApp = app;
 
 const root = new Container();
+const postLayer = new Container();
 const depth = new Container();
 const backgroundLayer = new Container();
 const architectureLayer = new Container();
@@ -44,7 +46,7 @@ const characterLayer = new Container();
 const floorVeilLayer = new Container();
 const uiLightLayer = new Container();
 
-app.stage.addChild(root);
+app.stage.addChild(root, postLayer);
 root.addChild(depth, groundLayer, floorVeilLayer, characterLayer);
 depth.addChild(backgroundLayer, architectureLayer, midLayer, fxLayer, foregroundLayer, uiLightLayer);
 
@@ -272,6 +274,9 @@ characterLayer.addChild(cloth.container);
 
 const subjectLustre = makeSubjectLustreSystem();
 characterLayer.addChild(subjectLustre.container);
+
+const cinematicGrain = makeCinematicGrainSystem();
+postLayer.addChild(cinematicGrain.container);
 
 const particles = makeParticles();
 for (const particle of particles) {
@@ -548,6 +553,7 @@ function animateScene(dt) {
   eyelids.update(t, character);
   cloth.update(t, character);
   subjectLustre.update(t, character, lookX, lookY, breathe, slowPulse);
+  cinematicGrain.update(t, w, h, lookX, lookY, breathe, portraitFactor);
   document.body.dataset.cameraArc = lookY.toFixed(3);
   document.body.dataset.cameraOrbit = lookX.toFixed(3);
   document.body.dataset.cameraMode = 'constrained-cardinal-arc';
@@ -588,6 +594,8 @@ function animateScene(dt) {
   document.body.dataset.characterRimAlpha = `${characterRimWarm.alpha.toFixed(3)},${characterRimCool.alpha.toFixed(3)}`;
   document.body.dataset.subjectLustreMode = 'pose-locked-micro-lustre';
   document.body.dataset.subjectLustrePeak = subjectLustre.peak.toFixed(3);
+  document.body.dataset.cinematicGrainMode = 'procedural-cinematic-grain';
+  document.body.dataset.cinematicGrainAlpha = cinematicGrain.alpha.toFixed(3);
   document.body.dataset.cameraPivot = `${Math.round(focusX)},${Math.round(focusY)}`;
   document.body.dataset.cameraShift = `${Math.round(depth.position.x - focusX)},${Math.round(depth.position.y - focusY)}`;
   document.body.dataset.cameraReveal = `${Math.round(backShift.x)},${Math.round(foreShift.x)}`;
@@ -781,6 +789,7 @@ function layout() {
   signatureSignals.position.set(w * 0.5, h * 0.5);
   fitCover(edgeGrade, w, h, 1.18);
   edgeGrade.position.set(w * 0.5, h * 0.5);
+  cinematicGrain.layout(w, h);
 
   fitCover(foreground.sprite, w, h, 1.3);
   foreground.baseScale = foreground.sprite.scale.x;
@@ -995,6 +1004,74 @@ function drawContactPressure(shadow, glints, t, w, h, subject, lookX, lookY, bre
   glints.quadraticCurveTo(centerX, footY - h * 0.004, centerX + stance * 1.12, footY + h * 0.012);
 
   return pressure;
+}
+
+function makeCinematicGrainSystem() {
+  const container = new Container();
+  const bright = new TilingSprite(makeCinematicGrainTexture('bright'), 1, 1);
+  const dark = new TilingSprite(makeCinematicGrainTexture('dark'), 1, 1);
+
+  bright.blendMode = BLEND_MODES.ADD;
+  dark.blendMode = BLEND_MODES.MULTIPLY;
+  bright.tileScale.set(1);
+  dark.tileScale.set(1);
+  container.addChild(dark, bright);
+
+  return {
+    container,
+    alpha: 0,
+    layout(w, h) {
+      bright.width = w;
+      bright.height = h;
+      dark.width = w;
+      dark.height = h;
+    },
+    update(t, w, h, lookX, lookY, breathe, portraitFactor) {
+      this.layout(w, h);
+      const grainAlpha = clamp(0.036 + breathe * 0.008 - portraitFactor * 0.006, 0.026, 0.048);
+      const driftX = Math.round(t * 19 + lookX * 16);
+      const driftY = Math.round(t * -13 + lookY * 18);
+
+      container.alpha = grainAlpha;
+      bright.alpha = 0.55;
+      dark.alpha = 0.44;
+      bright.tilePosition.set(driftX, driftY);
+      dark.tilePosition.set(-driftY * 0.7, driftX * 0.62);
+      this.alpha = grainAlpha;
+    },
+  };
+}
+
+function makeCinematicGrainTexture(kind) {
+  const size = 256;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  const image = ctx.createImageData(size, size);
+  const rng = createRng(`procedural-cinematic-grain-${kind}`);
+  const data = image.data;
+
+  for (let i = 0; i < data.length; i += 4) {
+    const noise = rng();
+    const fleck = rng() > 0.982;
+    const intensity = fleck ? 1 : noise;
+
+    if (kind === 'bright') {
+      data[i] = 185 + Math.round(intensity * 70);
+      data[i + 1] = 146 + Math.round(intensity * 82);
+      data[i + 2] = 206 + Math.round(intensity * 45);
+      data[i + 3] = Math.round((fleck ? 20 : 5 + intensity * 10) * 0.72);
+    } else {
+      data[i] = 8 + Math.round(intensity * 8);
+      data[i + 1] = 4 + Math.round(intensity * 7);
+      data[i + 2] = 12 + Math.round(intensity * 14);
+      data[i + 3] = Math.round((fleck ? 22 : 7 + intensity * 12) * 0.72);
+    }
+  }
+
+  ctx.putImageData(image, 0, 0);
+  return Texture.from(canvas);
 }
 
 function makeRoomBreathSystem() {
