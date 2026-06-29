@@ -377,6 +377,8 @@ function evaluateQualityGates(report) {
       assertGate(failures, sample.deepGradeMode === 'subtle-contrast-chroma-grade', `${name}/${sample.sample}: deep grade mode is ${sample.deepGradeMode}`);
       assertGate(failures, sample.deepGradeContrast >= 0.038 && sample.deepGradeContrast <= 0.07, `${name}/${sample.sample}: deep grade contrast out of range (${sample.deepGradeContrast})`);
       assertGate(failures, sample.deepGradeSaturation >= 0.05 && sample.deepGradeSaturation <= 0.082, `${name}/${sample.sample}: deep grade saturation out of range (${sample.deepGradeSaturation})`);
+      assertGate(failures, sample.appPresence === 'unformed', `${name}/${sample.sample}: app presence default is ${sample.appPresence}`);
+      assertGate(failures, sample.appPresenceResonance === 0, `${name}/${sample.sample}: app presence resonance default is ${sample.appPresenceResonance}`);
       assertGate(failures, sample.anchorLayer === 'backgroundLayer', `${name}/${sample.sample}: anchorLayer is ${sample.anchorLayer}`);
       assertGate(failures, sample.canvas?.width === width && sample.canvas?.height === height, `${name}/${sample.sample}: canvas is ${sample.canvas?.width}x${sample.canvas?.height}`);
       assertGate(failures, isFootInside(sample.subjectFoot, width, height), `${name}/${sample.sample}: subjectFoot out of viewport (${sample.subjectFoot})`);
@@ -572,6 +574,8 @@ async function readSceneState(page, sample) {
       deepGradeMode: document.body.dataset.deepGradeMode,
       deepGradeContrast: Number(document.body.dataset.deepGradeContrast),
       deepGradeSaturation: Number(document.body.dataset.deepGradeSaturation),
+      appPresence: document.body.dataset.appPresence,
+      appPresenceResonance: Number(document.body.dataset.appPresenceResonance),
       subjectFoot: document.body.dataset.subjectFoot,
       anchorLocal: document.body.dataset.anchorLocal,
       anchorLayer: document.body.dataset.anchorLayer,

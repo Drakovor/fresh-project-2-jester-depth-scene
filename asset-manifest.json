@@ -3,6 +3,7 @@
   "source_boundary": "Only assets generated for this workspace are used by the app.",
   "art_direction": "Adult feminine wicked jester, elegant and seductive without performance cliche, deep purple personal underworld, no dragon in first scene, no performance venue, no monarchic setting, no sacred setting, no medieval sorcerer setting, no cathedral/church architecture, no theater/stage framing.",
   "layering_strategy": "Generated background and character are separate assets. Motion, foreground haze, lighting, parallax, depth and eye/cloth micro-movement are produced by the WebGL app.",
+  "application_strategy": "The first app shell is a compact presence dock: a user-facing identity/affinity seed that can influence atmosphere without badges, farming, mini-games, rewards, streamer overlays, or visible tutorial text.",
   "runtime_visual_system": {
     "camera": "Constrained single-axis cardinal rail with left/right and up/down reveal, no free 360 orbit; diagonal cursor input resolves to one rail only with zero visible cross-axis leak.",
     "touch_input": "Mobile touch uses relative drag with smoothed catch-up and a no-teleport gate; finger placement does not jump the viewpoint and fast drag eases into the same final camera amplitude.",
