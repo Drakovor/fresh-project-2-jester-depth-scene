@@ -62,6 +62,7 @@ const state = {
   pointer: { x: 0.5, y: 0.5, tx: 0.5, ty: 0.5 },
   camera: { axis: 'center', lastInputAxis: 'center' },
   presence: { version: 'presence-threshold-v1', presence: 'unformed', resonance: 0, threshold: 0, phase: 'dormant', tone: 'violet' },
+  hollow: { pressure: 0.468, clarity: 0.448, fracture: 0, tick: 0, visibleTraceCount: 0 },
   input: {
     mode: 'hover',
     activePointerId: null,
@@ -442,6 +443,15 @@ window.addEventListener('projectpresencechange', (event) => {
   state.presence.tone = typeof detail.tone === 'string' ? detail.tone : 'violet';
   state.presence.version = typeof detail.version === 'string' ? detail.version : 'presence-threshold-v1';
 });
+window.addEventListener('hollowmarkchange', (event) => {
+  const detail = event.detail ?? {};
+  const pulse = detail.summary?.pulse ?? {};
+  state.hollow.pressure = clamp(Number(pulse.pressure) || 0, 0, 1);
+  state.hollow.clarity = clamp(Number(pulse.clarity) || 0, 0, 1);
+  state.hollow.fracture = clamp(Number(pulse.fracture) || 0, 0, 1);
+  state.hollow.tick = Number(detail.summary?.tick) || 0;
+  state.hollow.visibleTraceCount = Number(detail.summary?.visibleTraceCount) || 0;
+});
 if (window.__projectPresence) {
   state.presence.version = window.__projectPresence.version ?? 'presence-threshold-v1';
   state.presence.presence = window.__projectPresence.presence;
@@ -449,6 +459,14 @@ if (window.__projectPresence) {
   state.presence.threshold = clamp(Number(window.__projectPresence.threshold) || 0, 0, 1);
   state.presence.phase = window.__projectPresence.phase ?? 'dormant';
   state.presence.tone = window.__projectPresence.tone ?? 'violet';
+}
+if (window.__hollowMark) {
+  const pulse = window.__hollowMark.summary?.pulse ?? {};
+  state.hollow.pressure = clamp(Number(pulse.pressure) || 0, 0, 1);
+  state.hollow.clarity = clamp(Number(pulse.clarity) || 0, 0, 1);
+  state.hollow.fracture = clamp(Number(pulse.fracture) || 0, 0, 1);
+  state.hollow.tick = Number(window.__hollowMark.summary?.tick) || 0;
+  state.hollow.visibleTraceCount = Number(window.__hollowMark.summary?.visibleTraceCount) || 0;
 }
 layout();
 
@@ -474,6 +492,9 @@ function animateScene(dt) {
   const slowPulse = Math.sin(t * 0.19) * 0.5 + 0.5;
   const presenceResonance = state.presence.resonance;
   const thresholdPulse = state.presence.threshold;
+  const worldPressure = state.hollow.pressure;
+  const worldFracture = state.hollow.fracture;
+  const worldClarity = state.hollow.clarity;
   const orbit = constrainedCameraOrbit(px, py, t);
   const lookX = orbit.x;
   const lookY = orbit.y;
@@ -481,8 +502,8 @@ function animateScene(dt) {
   const arcFalloff = 1 - Math.min(0.42, Math.abs(lookX) * 0.14 + orbit.diagonal * 0.28);
   const focusX = w * CAMERA.roomPivotX;
   const focusY = h * CAMERA.roomPivotY;
-  const gradeContrast = clamp(0.045 + slowPulse * 0.012 + Math.abs(lookX) * 0.006, 0.04, 0.065);
-  const gradeSaturation = clamp(0.055 + breathe * 0.018 + presenceResonance * 0.006 + thresholdPulse * 0.004, 0.052, 0.086);
+  const gradeContrast = clamp(0.045 + slowPulse * 0.012 + Math.abs(lookX) * 0.006 + worldPressure * 0.008, 0.04, 0.073);
+  const gradeSaturation = clamp(0.055 + breathe * 0.018 + presenceResonance * 0.006 + thresholdPulse * 0.004 + worldClarity * 0.006, 0.052, 0.092);
 
   deepSceneGrade.reset();
   deepSceneGrade.contrast(gradeContrast, false);
@@ -543,7 +564,7 @@ function animateScene(dt) {
   foreground.sprite.alpha = state.assetsLoaded.foreground ? 0.18 : 0.52;
   foreground.sprite.scale.set(foreground.baseScale * (1.03 + slowPulse * 0.004));
   architecturalVeil.alpha = 0.5 + slowPulse * 0.09;
-  signatureSignals.alpha = 0.18 + breathe * 0.16 + presenceResonance * 0.035 + thresholdPulse * 0.024;
+  signatureSignals.alpha = 0.18 + breathe * 0.16 + presenceResonance * 0.035 + thresholdPulse * 0.024 + worldFracture * 0.035;
   signatureSignals.rotation = Math.sin(t * 0.055) * 0.002;
   livingSignals.update(t, w, h, lookX, lookY, breathe, slowPulse);
   glassRefraction.update(t, w, h, lookX, lookY, orbit.axis, breathe, portraitFactor);
@@ -563,7 +584,7 @@ function animateScene(dt) {
 
   centralGlow.position.set(w * 0.5 - lookX * w * 0.028, h * 0.52 + cameraArc * h * 0.026);
   centralGlow.scale.set(Math.max(w, h) / 540);
-  centralGlow.alpha = 0.16 + breathe * 0.16 + presenceResonance * 0.025 + thresholdPulse * 0.018;
+  centralGlow.alpha = 0.16 + breathe * 0.16 + presenceResonance * 0.025 + thresholdPulse * 0.018 + worldPressure * 0.018;
 
   const guidedLightX = clamp(0.5 + Math.sin(lookX * Math.PI * 0.46) * 0.24, 0.16, 0.84);
   const guidedLightY = clamp(0.48 + Math.sin(lookY * Math.PI * 0.48) * 0.19, 0.18, 0.78);
@@ -689,6 +710,9 @@ function animateScene(dt) {
   document.body.dataset.appThresholdValue = thresholdPulse.toFixed(3);
   document.body.dataset.appPresenceTone = state.presence.tone;
   document.body.dataset.appModelVersion = state.presence.version;
+  document.body.dataset.hollowMarkPulse = `${worldPressure.toFixed(3)},${worldClarity.toFixed(3)},${worldFracture.toFixed(3)}`;
+  document.body.dataset.hollowMarkTick = String(state.hollow.tick);
+  document.body.dataset.hollowMarkVisibleTraces = String(state.hollow.visibleTraceCount);
   document.body.dataset.cameraPivot = `${Math.round(focusX)},${Math.round(focusY)}`;
   document.body.dataset.cameraShift = `${Math.round(depth.position.x - focusX)},${Math.round(depth.position.y - focusY)}`;
   document.body.dataset.cameraReveal = `${Math.round(backShift.x)},${Math.round(foreShift.x)}`;

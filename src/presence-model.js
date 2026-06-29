@@ -17,6 +17,13 @@ export const PRESENCES = [
     threshold: 0.68,
   },
   {
+    id: 'pride',
+    label: 'Pride',
+    tone: 'pistachio',
+    resonance: 0.64,
+    threshold: 0.58,
+  },
+  {
     id: 'static',
     label: 'Static',
     tone: 'pistachio',

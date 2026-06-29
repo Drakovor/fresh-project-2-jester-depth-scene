@@ -2,6 +2,10 @@
 
 Premium layered WebGL scene for the feminine gothic jester universe.
 
+## Product Direction
+
+The current product concept is [Hollow Mark](docs/hollow-mark-game-concept.md): an ambitious persistent world-game, not a small streamer widget. The scene remains the visual threshold, while the app direction moves toward Masks, zones, moves, traces, visible marks, and world consequences that can grow into a full-stack game.
+
 ## Local Work
 
 ```bash
@@ -32,6 +36,8 @@ No old assets are required. If those files are missing, the app renders a proced
 
 ## Visual Invariants
 
+- Product gameplay must stay readable: mystery should create hunger, not boredom. A player must always understand what they can do, what risk it carries, and what changed afterward.
+- Hollow Mark is allowed to have visible marks, rewards, and status, but they must be consequences of meaningful play inside the world, not generic badges, streaks, points, streamer challenge tokens, or routine chores.
 - The presence dock is the first app shell element: it may let a visitor tune a presence state, but it must stay compact, dark, and non-streamer, never a generic gamification bar.
 - Threshold state may translate a chosen presence into atmosphere, but it must stay personal and material, never routine points, rank, streaks, quests, or farming loops.
 - Presence state persistence may remember the visitor's chosen tone locally, but it must remain a versioned universe state, not analytics, scoring, tracking, or hidden progression.
