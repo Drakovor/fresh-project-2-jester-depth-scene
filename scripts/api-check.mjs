@@ -51,14 +51,18 @@ try {
   assert(moved.world.tick === 1, 'world tick did not advance');
   assert(moved.lastTrace?.zone === 'pistachio-static', 'last trace zone mismatch');
   assert(moved.summary.visibleTraceCount > 0, 'move did not create a visible trace');
+  assert(moved.consequenceSummary?.publicCount >= 1, 'session payload did not include public consequences');
+  assert(moved.consequenceSummary?.eventTypeCounts?.visible_trace >= 1, 'visible trace consequence was not counted');
 
   const chronicle = await readJson('/api/chronicle/public');
-  assert(chronicle.events.length === 1, 'chronicle did not record public event');
+  assert(chronicle.events.length >= 1, 'chronicle did not record public event');
+  assert(chronicle.events.some((event) => event.eventType === 'visible_trace'), 'chronicle did not include visible trace event');
 
   const creator = await readJson('/api/creator/overview');
   assert(creator.ledger.tick === 1, 'creator overview did not expose current tick');
   assert(creator.sessions.total === 1, 'creator overview did not count active session');
   assert(creator.pressureLeaders.length > 0, 'creator overview did not expose pressure leaders');
+  assert(creator.consequenceSummary.publicCount >= 1, 'creator overview did not expose consequence summary');
 
   const admin = await readJson('/api/admin/world');
   assert(admin.sessions.length === 1, 'admin world did not expose the test session');

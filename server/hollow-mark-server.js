@@ -178,6 +178,7 @@ async function routeApi(req, res, url) {
     const zoneId = assertKnownZone(body.zoneId ?? session.selectedZone);
     const moveId = assertKnownMove(body.moveId ?? session.selectedMove);
     const now = new Date().toISOString();
+    const beforeMove = createBeforeMoveContext(store, session, zoneId);
     const result = applyMove(store.world, session.mask, moveId, zoneId, now);
     store.world = result.world;
     session.mask = result.mask;
@@ -185,7 +186,7 @@ async function routeApi(req, res, url) {
     session.selectedMove = moveId;
     session.lastTrace = result.trace;
     session.updatedAt = now;
-    appendChronicle(store, session, result.trace, now);
+    appendChronicle(store, session, result.trace, now, beforeMove);
     appendSnapshot(store, now);
     await persistStore(store);
     sendJson(res, 200, createSessionPayload(store, session), sessionHeader(session.id));
@@ -405,6 +406,7 @@ function createSessionPayload(store, session) {
     moveForecast,
     lastTrace: session.lastTrace,
     chronicle: store.chronicle.filter((event) => event.publicVisibility).slice(-20).reverse(),
+    consequenceSummary: createConsequenceSummary(store),
     serverTime: new Date().toISOString(),
   };
 }
@@ -416,6 +418,7 @@ function createPublicWorldPayload(store) {
     summary: getPlayableSummary(store.world),
     zones: describeWorldZones(store.world),
     chronicle: store.chronicle.filter((event) => event.publicVisibility).slice(-20).reverse(),
+    consequenceSummary: createConsequenceSummary(store),
     snapshots: store.snapshots.slice(-10).reverse(),
     serverTime: new Date().toISOString(),
   };
@@ -439,6 +442,7 @@ function createCreatorOverviewPayload(store) {
     pressureLeaders,
     zoneState,
     chronicle: store.chronicle.filter((event) => event.publicVisibility).slice(-12).reverse(),
+    consequenceSummary: createConsequenceSummary(store),
     sessions: {
       total: sessions.length,
       driveCounts,
@@ -466,23 +470,188 @@ function createCreatorOverviewPayload(store) {
   };
 }
 
-function appendChronicle(store, session, trace, now) {
-  const zone = store.world.zones.find((candidate) => candidate.id === trace.zone);
-  const event = {
-    id: `chronicle_${randomUUID()}`,
-    eventType: trace.visibility >= 0.24 ? 'visible_trace' : 'private_pressure',
-    zoneId: trace.zone,
-    maskId: session.mask.id,
-    traceId: trace.id,
-    moveId: trace.move,
-    title: trace.visibility >= 0.24 ? 'A trace became visible' : 'Pressure moved under glass',
-    body: `${session.mask.drive} used ${trace.move} in ${zone?.label ?? trace.zone}.`,
-    publicVisibility: trace.visibility >= 0.14,
-    createdAt: now,
-    pulse: getPlayableSummary(store.world).pulse,
+function createBeforeMoveContext(store, session, zoneId) {
+  return {
+    summary: getPlayableSummary(store.world),
+    zone: describeWorldZones(store.world).find((candidate) => candidate.id === zoneId),
+    maskShape: describeMaskShape(session.mask),
   };
-  store.chronicle.push(event);
+}
+
+function appendChronicle(store, session, trace, now, beforeMove) {
+  const zone = store.world.zones.find((candidate) => candidate.id === trace.zone);
+  const afterSummary = getPlayableSummary(store.world);
+  const afterZone = describeWorldZones(store.world).find((candidate) => candidate.id === trace.zone);
+  const afterMaskShape = describeMaskShape(session.mask);
+  const events = [
+    createChronicleEvent({
+      eventType: trace.visibility >= 0.24 ? 'visible_trace' : 'private_pressure',
+      zoneId: trace.zone,
+      maskId: session.mask.id,
+      traceId: trace.id,
+      moveId: trace.move,
+      title: trace.visibility >= 0.24 ? 'Visible trace' : 'Pressure under glass',
+      body: `${session.mask.drive} used ${trace.move} in ${zone?.label ?? trace.zone}.`,
+      publicVisibility: trace.visibility >= 0.14,
+      severity: trace.visibility >= 0.24 ? 'signal' : 'quiet',
+      now,
+      pulse: afterSummary.pulse,
+      zoneState: afterZone?.state,
+    }),
+  ];
+
+  if (beforeMove?.maskShape && didMaskShapeShift(beforeMove.maskShape, afterMaskShape)) {
+    events.push(createChronicleEvent({
+      eventType: 'mask_shift',
+      zoneId: trace.zone,
+      maskId: session.mask.id,
+      traceId: trace.id,
+      moveId: trace.move,
+      title: 'Mask surface changed',
+      body: `${beforeMove.maskShape.silhouette}/${beforeMove.maskShape.surface} became ${afterMaskShape.silhouette}/${afterMaskShape.surface}.`,
+      publicVisibility: trace.visibility >= 0.14 || afterMaskShape.visibility >= 0.1,
+      severity: afterMaskShape.fracture >= 0.3 ? 'sharp' : 'signal',
+      now,
+      pulse: afterSummary.pulse,
+      zoneState: afterZone?.state,
+    }));
+  }
+
+  if ((beforeMove?.zone?.pressure ?? 0) < 0.88 && (afterZone?.pressure ?? 0) >= 0.88) {
+    events.push(createChronicleEvent({
+      eventType: 'pressure_peak',
+      zoneId: trace.zone,
+      maskId: session.mask.id,
+      traceId: trace.id,
+      moveId: trace.move,
+      title: 'Zone pressure peaked',
+      body: `${afterZone?.label ?? trace.zone} crossed a high-pressure line.`,
+      publicVisibility: true,
+      severity: 'sharp',
+      now,
+      pulse: afterSummary.pulse,
+      zoneState: afterZone?.state,
+    }));
+  }
+
+  if ((beforeMove?.zone?.fracture ?? 0) < 0.42 && (afterZone?.fracture ?? 0) >= 0.42) {
+    events.push(createChronicleEvent({
+      eventType: 'zone_fracture',
+      zoneId: trace.zone,
+      maskId: session.mask.id,
+      traceId: trace.id,
+      moveId: trace.move,
+      title: 'Fracture line formed',
+      body: `${afterZone?.label ?? trace.zone} is no longer only pressured; it is breaking open.`,
+      publicVisibility: true,
+      severity: 'critical',
+      now,
+      pulse: afterSummary.pulse,
+      zoneState: afterZone?.state,
+    }));
+  }
+
+  if (beforeMove?.zone?.state !== 'opened' && afterZone?.state === 'opened') {
+    events.push(createChronicleEvent({
+      eventType: 'zone_opened',
+      zoneId: trace.zone,
+      maskId: session.mask.id,
+      traceId: trace.id,
+      moveId: trace.move,
+      title: 'Zone opened',
+      body: `${afterZone.label} became readable to everyone entering the Threshold.`,
+      publicVisibility: true,
+      severity: 'critical',
+      now,
+      pulse: afterSummary.pulse,
+      zoneState: afterZone?.state,
+    }));
+  }
+
+  if ((beforeMove?.summary?.pulse?.pressure ?? 0) < 0.58 && afterSummary.pulse.pressure >= 0.58) {
+    events.push(createChronicleEvent({
+      eventType: 'world_pulse_rise',
+      zoneId: trace.zone,
+      maskId: session.mask.id,
+      traceId: trace.id,
+      moveId: trace.move,
+      title: 'World pulse rose',
+      body: 'The shared pressure line crossed into a more dangerous range.',
+      publicVisibility: true,
+      severity: 'signal',
+      now,
+      pulse: afterSummary.pulse,
+      zoneState: afterZone?.state,
+    }));
+  }
+
+  store.chronicle.push(...events);
   if (store.chronicle.length > 180) store.chronicle = store.chronicle.slice(-180);
+}
+
+function createChronicleEvent({
+  eventType,
+  zoneId,
+  maskId,
+  traceId,
+  moveId,
+  title,
+  body,
+  publicVisibility,
+  severity,
+  now,
+  pulse,
+  zoneState,
+}) {
+  return {
+    id: `chronicle_${randomUUID()}`,
+    eventType,
+    zoneId,
+    maskId,
+    traceId,
+    moveId,
+    title,
+    body,
+    publicVisibility,
+    severity,
+    createdAt: now,
+    pulse,
+    zoneState,
+  };
+}
+
+function createConsequenceSummary(store) {
+  const publicEvents = store.chronicle.filter((event) => event.publicVisibility);
+  const latest = publicEvents.at(-1) ?? null;
+  const eventTypeCounts = publicEvents.reduce((counts, event) => {
+    counts[event.eventType] = (counts[event.eventType] ?? 0) + 1;
+    return counts;
+  }, {});
+  const criticalCount = publicEvents.filter((event) => event.severity === 'critical').length;
+  const sharpCount = publicEvents.filter((event) => event.severity === 'sharp').length;
+  const unresolvedZones = describeWorldZones(store.world)
+    .filter((zone) => zone.state === 'fractured' || zone.pressure >= 0.88)
+    .map((zone) => ({
+      id: zone.id,
+      label: zone.label,
+      state: zone.state,
+      intensity: zone.intensity,
+    }));
+
+  return {
+    latest,
+    eventTypeCounts,
+    publicCount: publicEvents.length,
+    criticalCount,
+    sharpCount,
+    unresolvedZones,
+  };
+}
+
+function didMaskShapeShift(beforeShape, afterShape) {
+  return beforeShape.silhouette !== afterShape.silhouette
+    || beforeShape.surface !== afterShape.surface
+    || beforeShape.dominantFacets.join('/') !== afterShape.dominantFacets.join('/');
 }
 
 function appendSnapshot(store, now) {

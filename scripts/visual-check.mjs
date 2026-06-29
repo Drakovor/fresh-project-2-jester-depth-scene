@@ -325,8 +325,10 @@ async function readSurfaceState(page) {
       status: surface?.dataset.status,
       selectedTab: document.querySelector('.surface-tab[aria-selected="true"]')?.dataset.view,
       metricCount: document.querySelectorAll('.surface-metric').length,
+      consequenceCount: document.querySelectorAll('.consequence-strip').length,
       chronicleCount: document.querySelectorAll('.chronicle-event').length,
       creatorStatCount: document.querySelectorAll('.creator-grid div').length,
+      signalCount: document.querySelectorAll('.signal-grid span').length,
       zoneRows: document.querySelectorAll('.surface-zone').length,
     };
   });
@@ -632,8 +634,10 @@ function evaluateAppShellGates(failures, appShell) {
   assertGate(failures, appShell.chronicleSurface.view === 'chronicle', `chronicle surface view is ${appShell.chronicleSurface.view}`);
   assertGate(failures, appShell.creatorSurface.view === 'creator', `creator surface view is ${appShell.creatorSurface.view}`);
   assertGate(failures, appShell.creatorSurface.creatorStatCount === 3, `creator surface stat count is ${appShell.creatorSurface.creatorStatCount}`);
+  assertGate(failures, appShell.creatorSurface.signalCount === 4, `creator surface signal count is ${appShell.creatorSurface.signalCount}`);
   assertGate(failures, appShell.worldSurface.view === 'world', `world surface view is ${appShell.worldSurface.view}`);
   assertGate(failures, appShell.worldSurface.metricCount === 3, `world surface metric count is ${appShell.worldSurface.metricCount}`);
+  assertGate(failures, appShell.worldSurface.consequenceCount === 1, `world surface consequence count is ${appShell.worldSurface.consequenceCount}`);
   assertGate(failures, appShell.shell.selectedSurfaceTab === 'world', `selected surface tab is ${appShell.shell.selectedSurfaceTab}`);
   assertGate(failures, Number(appShell.shell.thresholdLevel) >= 0.66, `app shell threshold level too low (${appShell.shell.thresholdLevel})`);
   assertGate(failures, appShell.restored.appPresence === 'defiance', `app shell restored presence is ${appShell.restored.appPresence}`);

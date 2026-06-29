@@ -346,6 +346,7 @@ function renderWorldSurface() {
   const zones = appState.publicWorld?.zones ?? describeWorldZones(hollowState.world);
   const chronicle = getChronicleEvents();
   const creator = appState.creatorOverview;
+  const consequenceSummary = appState.publicWorld?.consequenceSummary ?? creator?.consequenceSummary ?? null;
 
   return `
     <section class="world-surface" data-view="${appState.activeView}" data-status="${appState.remoteStatus}" aria-label="Hollow Mark application surface">
@@ -357,9 +358,9 @@ function renderWorldSurface() {
       </div>
 
       <div class="surface-body">
-        ${appState.activeView === 'world' ? renderWorldView(summary, zones) : ''}
+        ${appState.activeView === 'world' ? renderWorldView(summary, zones, consequenceSummary) : ''}
         ${appState.activeView === 'chronicle' ? renderChronicleView(chronicle) : ''}
-        ${appState.activeView === 'creator' ? renderCreatorView(creator, summary, zones) : ''}
+        ${appState.activeView === 'creator' ? renderCreatorView(creator, summary, zones, consequenceSummary) : ''}
       </div>
     </section>
   `;
@@ -373,7 +374,7 @@ function renderSurfaceTab(view, label) {
   `;
 }
 
-function renderWorldView(summary, zones) {
+function renderWorldView(summary, zones, consequenceSummary) {
   const hotZones = zones
     .filter((zone) => summary.hotZones.includes(zone.id))
     .slice(0, 2);
@@ -397,6 +398,7 @@ function renderWorldView(summary, zones) {
       <div class="surface-zone-stack">
         ${hotZones.map((zone) => renderZoneRow(zone)).join('')}
       </div>
+      ${renderConsequenceStrip(consequenceSummary)}
     </div>
   `;
 }
@@ -411,7 +413,7 @@ function renderChronicleView(events) {
       <div class="chronicle-list">
         ${events.length === 0 ? '<p class="surface-empty">No public trace yet.</p>' : events.slice(0, 6).map((event) => `
           <article class="chronicle-event">
-            <span>${escapeText(event.moveId ?? event.move ?? 'trace')}</span>
+            <span>${escapeText(formatEventType(event))}</span>
             <b>${escapeText(event.title ?? 'Trace recorded')}</b>
             <small>${escapeText(formatEventLine(event))}</small>
           </article>
@@ -421,7 +423,7 @@ function renderChronicleView(events) {
   `;
 }
 
-function renderCreatorView(creator, summary, zones) {
+function renderCreatorView(creator, summary, zones, consequenceSummary) {
   const ledger = creator?.ledger ?? {
     tick: summary.tick,
     visibleTraceCount: summary.visibleTraceCount,
@@ -450,6 +452,7 @@ function renderCreatorView(creator, summary, zones) {
           <span>${drive.label}<b>${sessions.driveCounts?.[drive.id] ?? 0}</b></span>
         `).join('')}
       </div>
+      ${renderSignalGrid(creator?.consequenceSummary ?? consequenceSummary)}
     </div>
   `;
 }
@@ -470,6 +473,43 @@ function renderZoneRow(zone) {
       <span>${escapeText(zone.label)}</span>
       <b>${escapeText(zone.state)}</b>
       <i style="--zone-intensity: ${zone.intensity ?? zone.pressure ?? 0}" aria-hidden="true"></i>
+    </div>
+  `;
+}
+
+function renderConsequenceStrip(consequenceSummary) {
+  if (!consequenceSummary?.latest) {
+    return `
+      <div class="consequence-strip" data-severity="quiet">
+        <span>Consequences</span>
+        <b>No public shift yet</b>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="consequence-strip" data-severity="${escapeText(consequenceSummary.latest.severity ?? 'signal')}">
+      <span>${escapeText(formatEventType(consequenceSummary.latest))}</span>
+      <b>${escapeText(consequenceSummary.latest.title ?? 'Trace recorded')}</b>
+      <i>${consequenceSummary.publicCount ?? 0}</i>
+    </div>
+  `;
+}
+
+function renderSignalGrid(consequenceSummary) {
+  const counts = consequenceSummary?.eventTypeCounts ?? {};
+  const entries = [
+    ['visible_trace', 'Visible'],
+    ['mask_shift', 'Mask'],
+    ['pressure_peak', 'Pressure'],
+    ['zone_fracture', 'Fracture'],
+  ];
+
+  return `
+    <div class="signal-grid">
+      ${entries.map(([key, label]) => `
+        <span>${label}<b>${counts[key] ?? 0}</b></span>
+      `).join('')}
     </div>
   `;
 }
@@ -707,6 +747,7 @@ function applyRemoteSurfaceState(remoteState) {
     summary: remoteState.summary ?? getPlayableSummary(remoteState.world),
     zones: remoteState.zoneLoom ?? describeWorldZones(remoteState.world),
     chronicle: remoteState.chronicle ?? [],
+    consequenceSummary: remoteState.consequenceSummary ?? appState.publicWorld?.consequenceSummary ?? null,
     serverTime: remoteState.serverTime ?? '',
   };
 }
@@ -796,6 +837,11 @@ function formatEventLine(event) {
   const zoneLabel = zone?.label ?? event.zoneId ?? '';
   const body = event.body ? `${event.body}` : zoneLabel;
   return body.length > 78 ? `${body.slice(0, 75)}...` : body;
+}
+
+function formatEventType(event) {
+  return String(event.eventType ?? event.moveId ?? event.move ?? 'trace')
+    .replaceAll('_', ' ');
 }
 
 function escapeText(value) {
