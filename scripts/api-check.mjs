@@ -55,6 +55,11 @@ try {
   const chronicle = await readJson('/api/chronicle/public');
   assert(chronicle.events.length === 1, 'chronicle did not record public event');
 
+  const creator = await readJson('/api/creator/overview');
+  assert(creator.ledger.tick === 1, 'creator overview did not expose current tick');
+  assert(creator.sessions.total === 1, 'creator overview did not count active session');
+  assert(creator.pressureLeaders.length > 0, 'creator overview did not expose pressure leaders');
+
   const admin = await readJson('/api/admin/world');
   assert(admin.sessions.length === 1, 'admin world did not expose the test session');
   assert(admin.snapshots.length === 1, 'world snapshot was not recorded');

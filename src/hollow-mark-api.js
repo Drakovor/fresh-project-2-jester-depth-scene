@@ -19,6 +19,14 @@ export async function commitRemoteMove({ zoneId, moveId }) {
   }));
 }
 
+export async function fetchPublicWorld() {
+  return requestHollowApi('/api/world/public');
+}
+
+export async function fetchCreatorOverview() {
+  return requestHollowApi('/api/creator/overview');
+}
+
 export function getHollowApiBaseUrl() {
   const configured = import.meta.env.VITE_HOLLOW_API_URL?.trim();
   if (configured) return configured.replace(/\/$/, '');
@@ -68,6 +76,12 @@ function normalizeRemotePayload(payload) {
   return {
     mask: payload.mask,
     world: payload.world,
+    summary: payload.summary ?? null,
+    zoneLoom: payload.zoneLoom ?? null,
+    selectedZoneState: payload.selectedZoneState ?? null,
+    moveForecast: payload.moveForecast ?? null,
+    chronicle: payload.chronicle ?? [],
+    serverTime: payload.serverTime ?? '',
     selectedZone: payload.selectedZone ?? 'threshold-floor',
     selectedMove: payload.selectedMove ?? 'mark',
     lastTrace: payload.lastTrace ?? null,

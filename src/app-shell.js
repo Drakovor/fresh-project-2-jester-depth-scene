@@ -21,6 +21,8 @@ import {
 } from './domain/hollow-mark-core.js';
 import {
   commitRemoteMove,
+  fetchCreatorOverview,
+  fetchPublicWorld,
   loadRemoteHollowState,
   setRemoteMaskDrive,
 } from './hollow-mark-api.js';
@@ -40,6 +42,14 @@ const hollowState = {
   selectedMove: 'mark',
   lastTrace: null,
   error: '',
+};
+
+const appState = {
+  activeView: 'world',
+  publicWorld: null,
+  creatorOverview: null,
+  remoteStatus: 'local',
+  remoteError: '',
 };
 
 let hydrated = false;
@@ -331,21 +341,170 @@ function renderPulseMeter(label, value) {
   `;
 }
 
+function renderWorldSurface() {
+  const summary = appState.publicWorld?.summary ?? getPlayableSummary(hollowState.world);
+  const zones = appState.publicWorld?.zones ?? describeWorldZones(hollowState.world);
+  const chronicle = getChronicleEvents();
+  const creator = appState.creatorOverview;
+
+  return `
+    <section class="world-surface" data-view="${appState.activeView}" data-status="${appState.remoteStatus}" aria-label="Hollow Mark application surface">
+      <div class="world-rail" role="tablist" aria-label="Hollow Mark views">
+        ${renderSurfaceTab('world', 'World')}
+        ${renderSurfaceTab('chronicle', 'Chronicle')}
+        ${renderSurfaceTab('creator', 'Creator')}
+        <button class="surface-refresh" type="button" aria-label="Refresh Hollow Mark state">Refresh</button>
+      </div>
+
+      <div class="surface-body">
+        ${appState.activeView === 'world' ? renderWorldView(summary, zones) : ''}
+        ${appState.activeView === 'chronicle' ? renderChronicleView(chronicle) : ''}
+        ${appState.activeView === 'creator' ? renderCreatorView(creator, summary, zones) : ''}
+      </div>
+    </section>
+  `;
+}
+
+function renderSurfaceTab(view, label) {
+  return `
+    <button class="surface-tab" type="button" role="tab" data-view="${view}" aria-selected="${appState.activeView === view}">
+      ${label}
+    </button>
+  `;
+}
+
+function renderWorldView(summary, zones) {
+  const hotZones = zones
+    .filter((zone) => summary.hotZones.includes(zone.id))
+    .slice(0, 2);
+
+  return `
+    <div class="surface-pane world-pane">
+      <div class="surface-head">
+        <span class="surface-kicker">Pulse</span>
+        <strong>${summary.tick}</strong>
+      </div>
+      <div class="surface-metrics">
+        ${renderSurfaceMetric('Pressure', summary.pulse.pressure)}
+        ${renderSurfaceMetric('Clarity', summary.pulse.clarity)}
+        ${renderSurfaceMetric('Fracture', summary.pulse.fracture)}
+      </div>
+      <div class="surface-ledger">
+        <span>Traces</span>
+        <b>${summary.visibleTraceCount ?? 0}</b>
+        <i>${escapeText(appState.remoteStatus)}</i>
+      </div>
+      <div class="surface-zone-stack">
+        ${hotZones.map((zone) => renderZoneRow(zone)).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function renderChronicleView(events) {
+  return `
+    <div class="surface-pane chronicle-pane">
+      <div class="surface-head">
+        <span class="surface-kicker">Chronicle</span>
+        <strong>${events.length}</strong>
+      </div>
+      <div class="chronicle-list">
+        ${events.length === 0 ? '<p class="surface-empty">No public trace yet.</p>' : events.slice(0, 6).map((event) => `
+          <article class="chronicle-event">
+            <span>${escapeText(event.moveId ?? event.move ?? 'trace')}</span>
+            <b>${escapeText(event.title ?? 'Trace recorded')}</b>
+            <small>${escapeText(formatEventLine(event))}</small>
+          </article>
+        `).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function renderCreatorView(creator, summary, zones) {
+  const ledger = creator?.ledger ?? {
+    tick: summary.tick,
+    visibleTraceCount: summary.visibleTraceCount,
+    chronicleCount: getChronicleEvents().length,
+    snapshotCount: 0,
+  };
+  const pressureLeaders = creator?.pressureLeaders ?? zones.slice(0, 3);
+  const sessions = creator?.sessions ?? { total: 0, driveCounts: {}, activeMasks: [] };
+
+  return `
+    <div class="surface-pane creator-pane">
+      <div class="surface-head">
+        <span class="surface-kicker">Creator</span>
+        <strong>${ledger.tick}</strong>
+      </div>
+      <div class="creator-grid">
+        <div><span>Sessions</span><b>${sessions.total}</b></div>
+        <div><span>Chronicle</span><b>${ledger.chronicleCount}</b></div>
+        <div><span>Snapshots</span><b>${ledger.snapshotCount}</b></div>
+      </div>
+      <div class="surface-zone-stack">
+        ${pressureLeaders.map((zone) => renderZoneRow(zone)).join('')}
+      </div>
+      <div class="drive-ledger">
+        ${MASK_DRIVES.map((drive) => `
+          <span>${drive.label}<b>${sessions.driveCounts?.[drive.id] ?? 0}</b></span>
+        `).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function renderSurfaceMetric(label, value) {
+  return `
+    <div class="surface-metric" style="--metric-level: ${value}">
+      <span>${label}</span>
+      <b>${formatPercent(value)}</b>
+      <i aria-hidden="true"></i>
+    </div>
+  `;
+}
+
+function renderZoneRow(zone) {
+  return `
+    <div class="surface-zone" data-state="${zone.state}">
+      <span>${escapeText(zone.label)}</span>
+      <b>${escapeText(zone.state)}</b>
+      <i style="--zone-intensity: ${zone.intensity ?? zone.pressure ?? 0}" aria-hidden="true"></i>
+    </div>
+  `;
+}
+
 function renderShell() {
   hydrate();
   const mount = document.getElementById('app-shell');
   if (!mount) return;
 
   mount.innerHTML = `
+    ${renderWorldSurface()}
     ${renderPresenceDock()}
     ${renderHollowMarkPanel()}
   `;
 
+  wireWorldSurface(mount);
   wirePresenceDock(mount);
   wireHollowMarkPanel(mount);
   emitPresence();
   emitHollowMark();
   hydrateRemoteHollowMark();
+}
+
+function wireWorldSurface(mount) {
+  for (const button of mount.querySelectorAll('.surface-tab')) {
+    button.addEventListener('click', () => {
+      appState.activeView = button.dataset.view;
+      renderShell();
+      refreshRemoteSurfaces();
+    });
+  }
+
+  mount.querySelector('.surface-refresh')?.addEventListener('click', () => {
+    refreshRemoteSurfaces({ forceCreator: true });
+  });
 }
 
 function wirePresenceDock(mount) {
@@ -454,11 +613,14 @@ function commitSelectedMove() {
     })
       .then((remoteState) => {
         applyRemoteHollowState(remoteState);
+        applyRemoteSurfaceState(remoteState);
         saveHollowMarkState();
         renderShell();
+        refreshRemoteSurfaces();
       })
       .catch(() => {
         remoteAvailable = false;
+        appState.remoteStatus = 'local';
         commitLocalMove();
       });
     return;
@@ -497,12 +659,17 @@ function hydrateRemoteHollowMark() {
   loadRemoteHollowState()
     .then((remoteState) => {
       remoteAvailable = true;
+      appState.remoteStatus = 'synced';
+      appState.remoteError = '';
       applyRemoteHollowState(remoteState);
+      applyRemoteSurfaceState(remoteState);
       saveHollowMarkState();
       renderShell();
+      refreshRemoteSurfaces();
     })
     .catch(() => {
       remoteAvailable = false;
+      appState.remoteStatus = 'local';
     })
     .finally(() => {
       remoteRequestActive = false;
@@ -514,11 +681,14 @@ function syncRemoteMaskDrive(driveId) {
   setRemoteMaskDrive(driveId)
     .then((remoteState) => {
       applyRemoteHollowState(remoteState);
+      applyRemoteSurfaceState(remoteState);
       saveHollowMarkState();
       renderShell();
+      refreshRemoteSurfaces();
     })
     .catch(() => {
       remoteAvailable = false;
+      appState.remoteStatus = 'local';
     });
 }
 
@@ -529,6 +699,45 @@ function applyRemoteHollowState(remoteState) {
   hollowState.selectedMove = remoteState.selectedMove;
   hollowState.lastTrace = remoteState.lastTrace;
   hollowState.error = '';
+}
+
+function applyRemoteSurfaceState(remoteState) {
+  if (!remoteState.summary && !remoteState.chronicle) return;
+  appState.publicWorld = {
+    summary: remoteState.summary ?? getPlayableSummary(remoteState.world),
+    zones: remoteState.zoneLoom ?? describeWorldZones(remoteState.world),
+    chronicle: remoteState.chronicle ?? [],
+    serverTime: remoteState.serverTime ?? '',
+  };
+}
+
+function refreshRemoteSurfaces({ forceCreator = false } = {}) {
+  if (getDemoMode()) return;
+
+  Promise.allSettled([
+    fetchPublicWorld(),
+    forceCreator || appState.activeView === 'creator' ? fetchCreatorOverview() : Promise.resolve(null),
+  ]).then(([publicResult, creatorResult]) => {
+    let shouldRender = false;
+
+    if (publicResult.status === 'fulfilled') {
+      appState.publicWorld = publicResult.value;
+      appState.remoteStatus = 'synced';
+      appState.remoteError = '';
+      remoteAvailable = true;
+      shouldRender = true;
+    } else {
+      appState.remoteStatus = 'local';
+      remoteAvailable = false;
+    }
+
+    if (creatorResult?.status === 'fulfilled' && creatorResult.value) {
+      appState.creatorOverview = creatorResult.value;
+      shouldRender = true;
+    }
+
+    if (shouldRender) renderShell();
+  });
 }
 
 function getSelectedZone() {
@@ -566,6 +775,36 @@ function collectVisibleTraces() {
       zone: zone.label,
     })))
     .reverse();
+}
+
+function getChronicleEvents() {
+  const remoteEvents = appState.publicWorld?.chronicle ?? [];
+  if (remoteEvents.length > 0) return remoteEvents;
+
+  return hollowState.world.actionLog.slice(-8).reverse().map((entry) => ({
+    id: entry.traceId,
+    title: 'Trace recorded',
+    body: `${entry.moveId} / ${entry.zoneId}`,
+    moveId: entry.moveId,
+    zoneId: entry.zoneId,
+    createdAt: entry.at,
+  }));
+}
+
+function formatEventLine(event) {
+  const zone = ZONES.find((candidate) => candidate.id === event.zoneId);
+  const zoneLabel = zone?.label ?? event.zoneId ?? '';
+  const body = event.body ? `${event.body}` : zoneLabel;
+  return body.length > 78 ? `${body.slice(0, 75)}...` : body;
+}
+
+function escapeText(value) {
+  return String(value)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
 }
 
 function formatForecast(forecast) {

@@ -214,6 +214,12 @@ async function routeApi(req, res, url) {
     return;
   }
 
+  if (url.pathname === '/api/creator/overview' && req.method === 'GET') {
+    const store = await readStore();
+    sendJson(res, 200, createCreatorOverviewPayload(store));
+    return;
+  }
+
   if (url.pathname === '/api/admin/world' && req.method === 'GET') {
     const store = await readStore();
     sendJson(res, 200, {
@@ -411,6 +417,51 @@ function createPublicWorldPayload(store) {
     zones: describeWorldZones(store.world),
     chronicle: store.chronicle.filter((event) => event.publicVisibility).slice(-20).reverse(),
     snapshots: store.snapshots.slice(-10).reverse(),
+    serverTime: new Date().toISOString(),
+  };
+}
+
+function createCreatorOverviewPayload(store) {
+  const sessions = Object.values(store.sessions);
+  const driveCounts = sessions.reduce((counts, session) => {
+    counts[session.mask.drive] = (counts[session.mask.drive] ?? 0) + 1;
+    return counts;
+  }, {});
+  const zoneState = describeWorldZones(store.world);
+  const pressureLeaders = [...zoneState]
+    .sort((left, right) => right.intensity - left.intensity)
+    .slice(0, 3);
+  const visibleTraceCount = store.world.zones.reduce((total, zone) => total + zone.visibleMarks.length, 0);
+
+  return {
+    modelVersion: HOLLOW_MARK_MODEL_VERSION,
+    summary: getPlayableSummary(store.world),
+    pressureLeaders,
+    zoneState,
+    chronicle: store.chronicle.filter((event) => event.publicVisibility).slice(-12).reverse(),
+    sessions: {
+      total: sessions.length,
+      driveCounts,
+      activeMasks: sessions
+        .filter((session) => session.updatedAt)
+        .sort((left, right) => String(right.updatedAt).localeCompare(String(left.updatedAt)))
+        .slice(0, 8)
+        .map((session) => ({
+          id: session.id,
+          maskId: session.mask.id,
+          drive: session.mask.drive,
+          will: session.mask.will,
+          marks: session.mask.marks.length,
+          scars: session.mask.scars.length,
+          updatedAt: session.updatedAt,
+        })),
+    },
+    ledger: {
+      tick: store.world.tick,
+      visibleTraceCount,
+      chronicleCount: store.chronicle.length,
+      snapshotCount: store.snapshots.length,
+    },
     serverTime: new Date().toISOString(),
   };
 }
