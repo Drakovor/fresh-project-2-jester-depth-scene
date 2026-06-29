@@ -233,6 +233,9 @@ contactShadow.anchor.set(0.5);
 contactShadow.alpha = 0.62;
 groundLayer.addChild(contactShadow);
 
+const contactPressure = makeContactPressureSystem();
+groundLayer.addChild(contactPressure.container);
+
 const floorReflection = new Sprite(character.sprite.texture);
 floorReflection.anchor.set(0, 1);
 floorReflection.tint = 0x7d4a96;
@@ -526,6 +529,7 @@ function animateScene(dt) {
   floorGleam.scale.set((w * 0.42) / floorGleam.texture.width, (h * 0.13) / floorGleam.texture.height);
   floorGleam.rotation = lookX * 0.018 + Math.sin(t * 0.1) * 0.003;
   contactShadow.alpha = 0.56 + breathe * 0.08;
+  contactPressure.update(t, w, h, character, lookX, lookY, breathe, slowPulse, portraitFactor);
   floorReflection.alpha = 0.055 + breathe * 0.025 + Math.abs(lookY) * 0.012;
   floorVeil.alpha = 0.16 + breathe * 0.035;
   floorGleam.alpha = 0.15 + breathe * 0.09 + Math.abs(lookY) * 0.04;
@@ -578,6 +582,8 @@ function animateScene(dt) {
   document.body.dataset.subjectMatteAlpha = subjectMatte.alpha.toFixed(3);
   document.body.dataset.floorReflectionMode = 'scene-anchored-contact-reflection';
   document.body.dataset.floorReflectionAlpha = floorReflection.alpha.toFixed(3);
+  document.body.dataset.contactPressureMode = 'scene-anchored-contact-pressure';
+  document.body.dataset.contactPressureAlpha = contactPressure.alpha.toFixed(3);
   document.body.dataset.characterRimMode = 'dual-tone-silhouette-separation';
   document.body.dataset.characterRimAlpha = `${characterRimWarm.alpha.toFixed(3)},${characterRimCool.alpha.toFixed(3)}`;
   document.body.dataset.subjectLustreMode = 'pose-locked-micro-lustre';
@@ -822,6 +828,7 @@ function layout() {
   const footY = character.sprite.position.y - character.sprite.texture.height * 0.012 * characterScale;
   contactShadow.position.set(character.displayCenterX + w * 0.01, footY + h * 0.006);
   contactShadow.scale.set((w * (isBalanced ? 0.24 : 0.2)) / contactShadow.texture.width, (h * 0.044) / contactShadow.texture.height);
+  contactPressure.layout(character, w, h);
   floorReflection.position.set(characterX + displayWidth * 0.14, footY + h * 0.012);
   floorReflection.scale.set(characterScale * 0.72, -characterScale * 0.12);
   floorReflection.skew.set(0, 0);
@@ -920,6 +927,74 @@ function drawSubjectMatte(g, subject, w, h, breathe, slowPulse, lookX, lookY) {
     cx - width * 0.28, shoulderY - height * 0.12,
   ]);
   g.endFill();
+}
+
+function makeContactPressureSystem() {
+  const container = new Container();
+  const shadow = new Graphics();
+  const glints = new Graphics();
+  shadow.blendMode = BLEND_MODES.MULTIPLY;
+  glints.blendMode = BLEND_MODES.ADD;
+  container.addChild(shadow, glints);
+
+  return {
+    container,
+    alpha: 0,
+    layout(subject, w, h) {
+      this.update(0, w, h, subject, 0, 0, 0.5, 0.5, w / Math.max(h, 1) < 0.82 ? 1 : 0);
+    },
+    update(t, w, h, subject, lookX, lookY, breathe, slowPulse, portraitFactor) {
+      this.alpha = drawContactPressure(shadow, glints, t, w, h, subject, lookX, lookY, breathe, slowPulse, portraitFactor);
+    },
+  };
+}
+
+function drawContactPressure(shadow, glints, t, w, h, subject, lookX, lookY, breathe, slowPulse, portraitFactor) {
+  const width = subject.sprite.texture.width * subject.baseScale;
+  const height = subject.sprite.texture.height * subject.baseScale;
+  const footY = subject.displayFootY - height * 0.012;
+  const centerX = subject.displayCenterX + lookX * w * 0.002;
+  const stance = clamp(width * 0.16, w * 0.032, w * 0.086);
+  const pressure = clamp(0.102 + breathe * 0.018 + Math.abs(lookY) * 0.026 - portraitFactor * 0.012, 0.085, 0.15);
+  const glintAlpha = clamp(0.12 + slowPulse * 0.055 + Math.abs(lookX) * 0.035, 0.11, 0.22);
+
+  shadow.clear();
+  shadow.alpha = pressure;
+
+  shadow.beginFill(0x020104, 0.58);
+  shadow.drawEllipse(centerX + w * 0.006, footY + h * 0.006, stance * 1.55, h * 0.026);
+  shadow.endFill();
+
+  for (const side of [-1, 1]) {
+    const x = centerX + side * stance * 0.54 + lookX * w * 0.003;
+    const y = footY + h * (0.004 + Math.max(0, lookY) * 0.004);
+
+    shadow.beginFill(0x010103, 0.68);
+    shadow.drawEllipse(x, y, stance * 0.58, h * 0.014);
+    shadow.endFill();
+  }
+
+  glints.clear();
+  glints.alpha = glintAlpha;
+
+  for (let i = 0; i < 4; i += 1) {
+    const p = i / 3;
+    const pulse = Math.max(0, Math.sin(t * 0.42 + i * 1.7));
+    const rx = stance * (1.05 + p * 0.72 + Math.abs(lookX) * 0.08);
+    const ry = h * (0.006 + p * 0.006);
+    const y = footY + h * (0.002 + p * 0.024 + lookY * 0.004);
+    const color = i % 2 === 0 ? 0xffa25d : 0x9d63e5;
+    const alpha = 0.026 + pulse * 0.028 + (1 - p) * 0.012;
+
+    glints.lineStyle(0.68 + p * 0.44, color, alpha);
+    glints.drawEllipse(centerX + lookX * w * 0.004, y, rx, ry);
+  }
+
+  glints.lineStyle(0.72, 0xbcffb0, 0.018 + slowPulse * 0.018);
+  glints.moveTo(centerX - stance * 1.05, footY + h * 0.01);
+  glints.quadraticCurveTo(centerX, footY - h * 0.004, centerX + stance * 1.12, footY + h * 0.012);
+
+  return pressure;
 }
 
 function makeRoomBreathSystem() {

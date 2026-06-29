@@ -45,6 +45,7 @@ No old assets are required. If those files are missing, the app renders a proced
 - Non-UI directional presence memory may leave subtle traces from exploration, but it must read as the room remembering movement, never as badges, rewards, quests, or streamer overlay UI.
 - Cinematic negative fill may darken the room immediately behind the subject to sculpt clarity, but it must stay behind her and never become a visible black halo.
 - The scene-anchored contact reflection stays subtle and floor-bound so the character feels grounded without becoming a duplicated figure.
+- Scene-anchored contact pressure may deepen the foot/floor contact, but must stay under the character and never become a ritual circle, stage mark, or UI highlight.
 - Dual-tone rim light may separate the character from the room, but must stay subtle and locked to the same pose/anchor as the character sprite.
 - Pose-locked micro-lustre may add tiny living glints to costume details, but must follow the character pose and remain below visible UI/reward/badge intensity.
 - Ambient particles, cloth strands, haze, sparks, glass marks, living wall/floor signals, and signature floor circuits use named deterministic seeds for a stable premium render.

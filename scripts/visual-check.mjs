@@ -360,6 +360,8 @@ function evaluateQualityGates(report) {
       assertGate(failures, sample.subjectMatteAlpha >= 0.09 && sample.subjectMatteAlpha <= 0.17, `${name}/${sample.sample}: subject matte alpha out of range (${sample.subjectMatteAlpha})`);
       assertGate(failures, sample.floorReflectionMode === 'scene-anchored-contact-reflection', `${name}/${sample.sample}: floor reflection mode is ${sample.floorReflectionMode}`);
       assertGate(failures, sample.floorReflectionAlpha >= 0.045 && sample.floorReflectionAlpha <= 0.11, `${name}/${sample.sample}: floor reflection alpha out of range (${sample.floorReflectionAlpha})`);
+      assertGate(failures, sample.contactPressureMode === 'scene-anchored-contact-pressure', `${name}/${sample.sample}: contact pressure mode is ${sample.contactPressureMode}`);
+      assertGate(failures, sample.contactPressureAlpha >= 0.08 && sample.contactPressureAlpha <= 0.16, `${name}/${sample.sample}: contact pressure alpha out of range (${sample.contactPressureAlpha})`);
       assertGate(failures, sample.characterRimMode === 'dual-tone-silhouette-separation', `${name}/${sample.sample}: character rim mode is ${sample.characterRimMode}`);
       assertGate(failures, isAlphaPairInRange(sample.characterRimAlpha, 0.024, 0.072), `${name}/${sample.sample}: character rim alpha out of range (${sample.characterRimAlpha})`);
       assertGate(failures, sample.subjectLustreMode === 'pose-locked-micro-lustre', `${name}/${sample.sample}: subject lustre mode is ${sample.subjectLustreMode}`);
@@ -542,6 +544,8 @@ async function readSceneState(page, sample) {
       subjectMatteAlpha: Number(document.body.dataset.subjectMatteAlpha),
       floorReflectionMode: document.body.dataset.floorReflectionMode,
       floorReflectionAlpha: Number(document.body.dataset.floorReflectionAlpha),
+      contactPressureMode: document.body.dataset.contactPressureMode,
+      contactPressureAlpha: Number(document.body.dataset.contactPressureAlpha),
       characterRimMode: document.body.dataset.characterRimMode,
       characterRimAlpha: document.body.dataset.characterRimAlpha,
       subjectLustreMode: document.body.dataset.subjectLustreMode,
