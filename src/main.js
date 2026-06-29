@@ -52,6 +52,20 @@ const state = {
   time: 0,
   pointer: { x: 0.5, y: 0.5, tx: 0.5, ty: 0.5 },
   camera: { axis: 'center', lastInputAxis: 'center' },
+  input: {
+    mode: 'hover',
+    activePointerId: null,
+    touchStartX: 0,
+    touchStartY: 0,
+    touchBaseX: 0.5,
+    touchBaseY: 0.5,
+    touchRawX: 0.5,
+    touchRawY: 0.5,
+    touchViewX: 0.5,
+    touchViewY: 0.5,
+    touchTargetX: 0.5,
+    touchTargetY: 0.5,
+  },
   size: { w: 1, h: 1 },
   assetsLoaded: { background: false, character: false, foreground: false },
 };
@@ -71,6 +85,15 @@ const CAMERA = {
   foregroundRevealY: 0.118,
   fxRevealX: 0.076,
   fxRevealY: 0.042,
+};
+
+const TOUCH_CAMERA = {
+  fullTravelX: 0.38,
+  fullTravelY: 0.38,
+  dragCatchupPerSecond: 1.55,
+  releaseCatchupPerSecond: 1.05,
+  dragEase: 0.26,
+  releaseEase: 0.16,
 };
 
 const ANCHOR = {
@@ -245,17 +268,117 @@ for (const mote of mirrorMotes) {
   fxLayer.addChild(mote);
 }
 
-function updatePointerTarget(event) {
-  state.pointer.tx = event.clientX / Math.max(window.innerWidth, 1);
-  state.pointer.ty = event.clientY / Math.max(window.innerHeight, 1);
+function isTouchLikePointer(event) {
+  return event.pointerType === 'touch' || event.pointerType === 'pen';
 }
 
-window.addEventListener('pointermove', updatePointerTarget);
-window.addEventListener('mousemove', updatePointerTarget);
+function setPointerTarget(x, y) {
+  state.pointer.tx = clamp(x, 0, 1);
+  state.pointer.ty = clamp(y, 0, 1);
+}
+
+function approachValue(current, target, ease, maxStep) {
+  const delta = target - current;
+  const eased = delta * ease;
+  return current + clamp(eased, -maxStep, maxStep);
+}
+
+function syncTouchPointerTarget(dt) {
+  if (state.input.mode !== 'touch-drag' && state.input.mode !== 'touch-release') return;
+
+  const isRelease = state.input.mode === 'touch-release';
+  const maxStep = (isRelease ? TOUCH_CAMERA.releaseCatchupPerSecond : TOUCH_CAMERA.dragCatchupPerSecond) * dt;
+  const ease = isRelease ? TOUCH_CAMERA.releaseEase : TOUCH_CAMERA.dragEase;
+  state.input.touchViewX = approachValue(state.input.touchViewX, state.input.touchRawX, ease, maxStep);
+  state.input.touchViewY = approachValue(state.input.touchViewY, state.input.touchRawY, ease, maxStep);
+  setPointerTarget(state.input.touchViewX, state.input.touchViewY);
+}
+
+function updateHoverPointer(event) {
+  if (isTouchLikePointer(event)) return;
+  state.input.mode = 'hover';
+  setPointerTarget(
+    event.clientX / Math.max(window.innerWidth, 1),
+    event.clientY / Math.max(window.innerHeight, 1),
+  );
+}
+
+function beginTouchCamera(event) {
+  if (!isTouchLikePointer(event) || event.isPrimary === false) return;
+  state.input.activePointerId = event.pointerId;
+  state.input.mode = 'touch-drag';
+  state.input.touchStartX = event.clientX;
+  state.input.touchStartY = event.clientY;
+  state.input.touchBaseX = state.pointer.tx;
+  state.input.touchBaseY = state.pointer.ty;
+  state.input.touchRawX = state.input.touchBaseX;
+  state.input.touchRawY = state.input.touchBaseY;
+  state.input.touchViewX = state.pointer.tx;
+  state.input.touchViewY = state.pointer.ty;
+  state.input.touchTargetX = state.input.touchBaseX;
+  state.input.touchTargetY = state.input.touchBaseY;
+  setPointerTarget(state.input.touchViewX, state.input.touchViewY);
+  if (app.view.setPointerCapture) {
+    try {
+      app.view.setPointerCapture(event.pointerId);
+    } catch {
+      // Synthetic touch tests and a few browsers can reject capture; the window listener still tracks the drag.
+    }
+  }
+  event.preventDefault();
+}
+
+function updateTouchCamera(event) {
+  if (!isTouchLikePointer(event)) return;
+  if (state.input.activePointerId !== event.pointerId) return;
+  const dx = (event.clientX - state.input.touchStartX) / Math.max(window.innerWidth, 1);
+  const dy = (event.clientY - state.input.touchStartY) / Math.max(window.innerHeight, 1);
+  const targetX = state.input.touchBaseX + clamp(dx / TOUCH_CAMERA.fullTravelX, -0.5, 0.5);
+  const targetY = state.input.touchBaseY + clamp(dy / TOUCH_CAMERA.fullTravelY, -0.5, 0.5);
+  state.input.mode = 'touch-drag';
+  state.input.touchRawX = clamp(targetX, 0, 1);
+  state.input.touchRawY = clamp(targetY, 0, 1);
+  state.input.touchTargetX = state.input.touchRawX;
+  state.input.touchTargetY = state.input.touchRawY;
+  event.preventDefault();
+}
+
+function endTouchCamera(event) {
+  if (!isTouchLikePointer(event)) return;
+  if (state.input.activePointerId !== event.pointerId) return;
+  state.input.activePointerId = null;
+  state.input.mode = 'touch-release';
+  state.input.touchRawX = 0.5;
+  state.input.touchRawY = 0.5;
+  state.input.touchTargetX = 0.5;
+  state.input.touchTargetY = 0.5;
+  if (app.view.releasePointerCapture) {
+    try {
+      app.view.releasePointerCapture(event.pointerId);
+    } catch {
+      // Ignore capture mismatches from synthetic or interrupted touch sequences.
+    }
+  }
+  event.preventDefault();
+}
+
+function handlePointerMove(event) {
+  if (isTouchLikePointer(event)) {
+    updateTouchCamera(event);
+    return;
+  }
+  updateHoverPointer(event);
+}
+
+app.view.addEventListener('pointerdown', beginTouchCamera, { passive: false });
+window.addEventListener('pointermove', handlePointerMove, { passive: false });
+window.addEventListener('pointerup', endTouchCamera, { passive: false });
+window.addEventListener('pointercancel', endTouchCamera, { passive: false });
+window.addEventListener('mousemove', updateHoverPointer);
 
 window.addEventListener('pointerleave', () => {
-  state.pointer.tx = 0.5;
-  state.pointer.ty = 0.5;
+  if (state.input.activePointerId !== null) return;
+  setPointerTarget(0.5, 0.5);
 });
 
 window.addEventListener('resize', layout);
@@ -264,8 +387,10 @@ layout();
 app.ticker.add((delta) => {
   const dt = delta / 60;
   state.time += dt;
-  state.pointer.x += (state.pointer.tx - state.pointer.x) * 0.085;
-  state.pointer.y += (state.pointer.ty - state.pointer.y) * 0.085;
+  syncTouchPointerTarget(dt);
+  const pointerEase = state.input.mode === 'touch-drag' || state.input.mode === 'touch-release' ? 0.12 : 0.085;
+  state.pointer.x += (state.pointer.tx - state.pointer.x) * pointerEase;
+  state.pointer.y += (state.pointer.ty - state.pointer.y) * pointerEase;
 
   animateScene(dt);
 });
@@ -406,6 +531,8 @@ function animateScene(dt) {
   document.body.dataset.cameraArc = lookY.toFixed(3);
   document.body.dataset.cameraOrbit = lookX.toFixed(3);
   document.body.dataset.cameraMode = 'constrained-cardinal-arc';
+  document.body.dataset.inputMode = state.input.mode;
+  document.body.dataset.touchCameraMode = 'relative-drag-smoothed-no-teleport';
   document.body.dataset.cameraAxis = orbit.axis;
   document.body.dataset.cameraRailLock = 'single-axis';
   document.body.dataset.cameraRadius = orbit.radius.toFixed(3);

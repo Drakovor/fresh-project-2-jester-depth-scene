@@ -5,6 +5,7 @@
   "layering_strategy": "Generated background and character are separate assets. Motion, foreground haze, lighting, parallax, depth and eye/cloth micro-movement are produced by the WebGL app.",
   "runtime_visual_system": {
     "camera": "Constrained single-axis cardinal rail with left/right and up/down reveal, no free 360 orbit; diagonal cursor input resolves to one rail only with zero visible cross-axis leak.",
+    "touch_input": "Mobile touch uses relative drag with smoothed catch-up and a no-teleport gate; finger placement does not jump the viewpoint and fast drag eases into the same final camera amplitude.",
     "anchoring": "Character feet are projected from a background-layer point at the center floor circle.",
     "cardinal_reveal": "Code-generated reveal shutters, side glints, top wires, and floor sheens follow the same camera axis, adding left/right/up/down discovery without moving the character.",
     "peripheral_focus": "Code-generated optical aperture threads and depth ellipses reinforce an entering-the-space sensation while keeping the central character and floor anchor clear.",

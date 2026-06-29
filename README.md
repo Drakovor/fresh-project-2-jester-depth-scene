@@ -34,6 +34,7 @@ No old assets are required. If those files are missing, the app renders a proced
 
 - The character feet are anchored to the center floor circle through the background layer, not locked to the screen.
 - The camera uses a constrained single-axis cardinal arc, not a free 360 view; diagonal cursor input must resolve to one rail only, with zero visible cross-axis leak.
+- Touch input uses relative drag with capped camera catch-up, so placing or moving a finger cannot teleport the viewpoint; mobile must feel like the same scene camera as desktop, only touch-driven.
 - Cardinal reveal shutters and side reflections must stay behind the character and follow the same camera axis as the room arc.
 - The peripheral depth focus aperture reinforces the sensation of entering the space while keeping the central character/floor lane readable.
 - Axis-bound volumetric slit haze adds depth in the room air without becoming stage lighting or covering the character lane.

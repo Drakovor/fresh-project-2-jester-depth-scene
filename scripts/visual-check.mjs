@@ -51,6 +51,8 @@ try {
     consoleMessages,
   };
   report.qualityGates = evaluateQualityGates(report);
+  report.touchInput = await checkTouchInput(browser, consoleMessages);
+  evaluateTouchGates(report.qualityGates.failures, report.touchInput);
   report.passed = report.qualityGates.failures.length === 0;
 
   await writeFile(reportFile, JSON.stringify(report, null, 2));
@@ -133,6 +135,139 @@ async function checkViewport(browser, viewport, consoleMessages) {
   } finally {
     await page.close();
   }
+}
+
+async function checkTouchInput(browser, consoleMessages) {
+  const viewport = { name: 'touch', width: 390, height: 844 };
+  const page = await browser.newPage({
+    viewport: { width: viewport.width, height: viewport.height },
+    deviceScaleFactor: 1,
+    isMobile: true,
+    hasTouch: true,
+  });
+
+  page.on('console', (message) => {
+    if (['error', 'warning'].includes(message.type())) {
+      consoleMessages.push({
+        viewport: viewport.name,
+        type: message.type(),
+        text: message.text(),
+      });
+    }
+  });
+
+  try {
+    await page.route('**/favicon.ico', (route) => route.fulfill({ status: 204, body: '' }));
+    await page.goto(makeUrl(viewport.name), { waitUntil: 'domcontentloaded', timeout: 15000 });
+    await page.waitForFunction(
+      () => document.body.dataset.sceneReady === 'true' && document.querySelector('canvas')?.width > 0,
+      { timeout: 15000 },
+    );
+    await page.waitForTimeout(700);
+
+    const baseline = await readSceneState(page, 'touch-baseline');
+    const tapOnly = await dispatchTouchStep(page, {
+      name: 'touch-tap-only',
+      start: { x: viewport.width * 0.86, y: viewport.height * 0.5 },
+      moves: [],
+    });
+    const dragRightEarly = await dispatchTouchStep(page, {
+      name: 'touch-drag-right-early',
+      start: { x: viewport.width * 0.5, y: viewport.height * 0.5 },
+      moves: [{ x: viewport.width * 0.86, y: viewport.height * 0.5 }],
+      settleMs: 140,
+    });
+    const dragRight = await dispatchTouchStep(page, {
+      name: 'touch-drag-right',
+      start: { x: viewport.width * 0.5, y: viewport.height * 0.5 },
+      moves: [{ x: viewport.width * 0.86, y: viewport.height * 0.5 }],
+      settleMs: 980,
+    });
+    const dragUp = await dispatchTouchStep(page, {
+      name: 'touch-drag-up',
+      start: { x: viewport.width * 0.5, y: viewport.height * 0.5 },
+      moves: [{ x: viewport.width * 0.5, y: viewport.height * 0.16 }],
+      settleMs: 980,
+    });
+    const afterRelease = await readSceneState(page, 'touch-after-release');
+
+    return {
+      viewport,
+      baseline,
+      tapOnly,
+      dragRightEarly,
+      dragRight,
+      dragUp,
+      afterRelease,
+    };
+  } finally {
+    await page.close();
+  }
+}
+
+async function dispatchTouchStep(page, step) {
+  const end = await page.evaluate(({ start, moves }) => {
+    const target = document.querySelector('canvas');
+    const pointerId = 23;
+    const base = {
+      bubbles: true,
+      cancelable: true,
+      composed: true,
+      pointerId,
+      pointerType: 'touch',
+      isPrimary: true,
+      buttons: 1,
+      pressure: 0.6,
+      width: 14,
+      height: 14,
+    };
+    target.dispatchEvent(new PointerEvent('pointerdown', {
+      ...base,
+      clientX: start.x,
+      clientY: start.y,
+    }));
+
+    for (const move of moves) {
+      window.dispatchEvent(new PointerEvent('pointermove', {
+        ...base,
+        clientX: move.x,
+        clientY: move.y,
+      }));
+    }
+
+    return moves[moves.length - 1] ?? start;
+  }, step);
+
+  await page.waitForTimeout(step.settleMs ?? (step.moves.length > 0 ? 820 : 420));
+  const state = await readSceneState(page, step.name);
+
+  await page.evaluate(({ x, y }) => {
+    const pointerId = 23;
+    window.dispatchEvent(new PointerEvent('pointerup', {
+      bubbles: true,
+      cancelable: true,
+      composed: true,
+      pointerId,
+      pointerType: 'touch',
+      isPrimary: true,
+      buttons: 0,
+      pressure: 0,
+      width: 14,
+      height: 14,
+      clientX: x,
+      clientY: y,
+    }));
+  }, end);
+
+  await page.waitForFunction(
+    () => {
+      const orbit = Math.abs(Number(document.body.dataset.cameraOrbit));
+      const arc = Math.abs(Number(document.body.dataset.cameraArc));
+      return Number.isFinite(orbit) && Number.isFinite(arc) && orbit <= 0.055 && arc <= 0.055;
+    },
+    { timeout: 2200 },
+  );
+  return state;
 }
 
 function makeUrl(viewportName) {
@@ -234,8 +369,31 @@ function evaluateQualityGates(report) {
       edgeBrightnessMax: { desktop: 16, tablet: 16, mobile: 22 },
       idleMotionMeanChannelDelta: { min: 1.4, max: 7.2 },
       pixelDiffRatioMin: 0.18,
+      touchEarlyDragOrbitRange: { min: 0.08, max: 0.48 },
+      touchFinalDragOrbitMin: 0.54,
     },
   };
+}
+
+function evaluateTouchGates(failures, touchInput) {
+  assertGate(failures, touchInput.tapOnly.touchCameraMode === 'relative-drag-smoothed-no-teleport', `touch mode is ${touchInput.tapOnly.touchCameraMode}`);
+  assertGate(failures, touchInput.tapOnly.inputMode === 'touch-drag', `touch tap input mode is ${touchInput.tapOnly.inputMode}`);
+  assertGate(failures, touchInput.tapOnly.cameraAxis === 'center', `touch tap jumps camera axis to ${touchInput.tapOnly.cameraAxis}`);
+  assertGate(failures, Math.abs(touchInput.tapOnly.cameraOrbit) <= 0.05, `touch tap jumps horizontal orbit (${touchInput.tapOnly.cameraOrbit})`);
+  assertGate(failures, Math.abs(touchInput.tapOnly.cameraArc) <= 0.05, `touch tap jumps vertical arc (${touchInput.tapOnly.cameraArc})`);
+  assertGate(failures, touchInput.dragRightEarly.inputMode === 'touch-drag', `touch early drag input mode is ${touchInput.dragRightEarly.inputMode}`);
+  assertGate(failures, touchInput.dragRightEarly.cameraAxis === 'x', `touch early right drag axis is ${touchInput.dragRightEarly.cameraAxis}`);
+  assertGate(failures, touchInput.dragRightEarly.cameraOrbit >= 0.08, `touch early right drag does not start moving (${touchInput.dragRightEarly.cameraOrbit})`);
+  assertGate(failures, touchInput.dragRightEarly.cameraOrbit <= 0.48, `touch early right drag teleports too far (${touchInput.dragRightEarly.cameraOrbit})`);
+  assertGate(failures, Math.abs(touchInput.dragRightEarly.cameraArc) <= 0.006, `touch early right drag leaks vertical arc (${touchInput.dragRightEarly.cameraArc})`);
+  assertGate(failures, touchInput.dragRight.inputMode === 'touch-drag', `touch right drag input mode is ${touchInput.dragRight.inputMode}`);
+  assertGate(failures, touchInput.dragRight.cameraAxis === 'x', `touch right drag axis is ${touchInput.dragRight.cameraAxis}`);
+  assertGate(failures, touchInput.dragRight.cameraOrbit >= 0.54, `touch right drag orbit too weak (${touchInput.dragRight.cameraOrbit})`);
+  assertGate(failures, Math.abs(touchInput.dragRight.cameraArc) <= 0.006, `touch right drag leaks vertical arc (${touchInput.dragRight.cameraArc})`);
+  assertGate(failures, touchInput.dragUp.inputMode === 'touch-drag', `touch up drag input mode is ${touchInput.dragUp.inputMode}`);
+  assertGate(failures, touchInput.dragUp.cameraAxis === 'y', `touch up drag axis is ${touchInput.dragUp.cameraAxis}`);
+  assertGate(failures, touchInput.dragUp.cameraArc <= -0.32, `touch up drag arc too weak (${touchInput.dragUp.cameraArc})`);
+  assertGate(failures, Math.abs(touchInput.dragUp.cameraOrbit) <= 0.006, `touch up drag leaks horizontal orbit (${touchInput.dragUp.cameraOrbit})`);
 }
 
 function assertGate(failures, condition, message) {
@@ -340,6 +498,8 @@ async function readSceneState(page, sample) {
       sample: sampleName,
       sceneReady: document.body.dataset.sceneReady,
       cameraMode: document.body.dataset.cameraMode,
+      inputMode: document.body.dataset.inputMode,
+      touchCameraMode: document.body.dataset.touchCameraMode,
       cameraAxis: document.body.dataset.cameraAxis,
       cameraRailLock: document.body.dataset.cameraRailLock,
       cameraOrbit: Number(document.body.dataset.cameraOrbit),
