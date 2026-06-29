@@ -59,7 +59,7 @@ const state = {
   time: 0,
   pointer: { x: 0.5, y: 0.5, tx: 0.5, ty: 0.5 },
   camera: { axis: 'center', lastInputAxis: 'center' },
-  presence: { presence: 'unformed', resonance: 0 },
+  presence: { presence: 'unformed', resonance: 0, threshold: 0, phase: 'dormant' },
   input: {
     mode: 'hover',
     activePointerId: null,
@@ -418,10 +418,14 @@ window.addEventListener('projectpresencechange', (event) => {
   const detail = event.detail ?? {};
   state.presence.presence = typeof detail.presence === 'string' ? detail.presence : 'unformed';
   state.presence.resonance = clamp(Number(detail.resonance) || 0, 0, 1);
+  state.presence.threshold = clamp(Number(detail.threshold) || 0, 0, 1);
+  state.presence.phase = typeof detail.phase === 'string' ? detail.phase : 'dormant';
 });
 if (window.__projectPresence) {
   state.presence.presence = window.__projectPresence.presence;
   state.presence.resonance = clamp(Number(window.__projectPresence.resonance) || 0, 0, 1);
+  state.presence.threshold = clamp(Number(window.__projectPresence.threshold) || 0, 0, 1);
+  state.presence.phase = window.__projectPresence.phase ?? 'dormant';
 }
 layout();
 
@@ -446,6 +450,7 @@ function animateScene(dt) {
   const breathe = Math.sin(t * 0.48) * 0.5 + 0.5;
   const slowPulse = Math.sin(t * 0.19) * 0.5 + 0.5;
   const presenceResonance = state.presence.resonance;
+  const thresholdPulse = state.presence.threshold;
   const orbit = constrainedCameraOrbit(px, py, t);
   const lookX = orbit.x;
   const lookY = orbit.y;
@@ -454,7 +459,7 @@ function animateScene(dt) {
   const focusX = w * CAMERA.roomPivotX;
   const focusY = h * CAMERA.roomPivotY;
   const gradeContrast = clamp(0.045 + slowPulse * 0.012 + Math.abs(lookX) * 0.006, 0.04, 0.065);
-  const gradeSaturation = clamp(0.055 + breathe * 0.018 + presenceResonance * 0.006, 0.052, 0.084);
+  const gradeSaturation = clamp(0.055 + breathe * 0.018 + presenceResonance * 0.006 + thresholdPulse * 0.004, 0.052, 0.086);
 
   deepSceneGrade.reset();
   deepSceneGrade.contrast(gradeContrast, false);
@@ -515,7 +520,7 @@ function animateScene(dt) {
   foreground.sprite.alpha = state.assetsLoaded.foreground ? 0.18 : 0.52;
   foreground.sprite.scale.set(foreground.baseScale * (1.03 + slowPulse * 0.004));
   architecturalVeil.alpha = 0.5 + slowPulse * 0.09;
-  signatureSignals.alpha = 0.18 + breathe * 0.16 + presenceResonance * 0.035;
+  signatureSignals.alpha = 0.18 + breathe * 0.16 + presenceResonance * 0.035 + thresholdPulse * 0.024;
   signatureSignals.rotation = Math.sin(t * 0.055) * 0.002;
   livingSignals.update(t, w, h, lookX, lookY, breathe, slowPulse);
   roomBreath.update(t, w, h, lookX, lookY, breathe);
@@ -533,7 +538,7 @@ function animateScene(dt) {
 
   centralGlow.position.set(w * 0.5 - lookX * w * 0.028, h * 0.52 + cameraArc * h * 0.026);
   centralGlow.scale.set(Math.max(w, h) / 540);
-  centralGlow.alpha = 0.16 + breathe * 0.16 + presenceResonance * 0.025;
+  centralGlow.alpha = 0.16 + breathe * 0.16 + presenceResonance * 0.025 + thresholdPulse * 0.018;
 
   const guidedLightX = clamp(0.5 + Math.sin(lookX * Math.PI * 0.46) * 0.24, 0.16, 0.84);
   const guidedLightY = clamp(0.48 + Math.sin(lookY * Math.PI * 0.48) * 0.19, 0.18, 0.78);
@@ -637,6 +642,8 @@ function animateScene(dt) {
   document.body.dataset.deepGradeSaturation = gradeSaturation.toFixed(3);
   document.body.dataset.appPresence = state.presence.presence;
   document.body.dataset.appPresenceResonance = presenceResonance.toFixed(3);
+  document.body.dataset.appThresholdPhase = state.presence.phase;
+  document.body.dataset.appThresholdValue = thresholdPulse.toFixed(3);
   document.body.dataset.cameraPivot = `${Math.round(focusX)},${Math.round(focusY)}`;
   document.body.dataset.cameraShift = `${Math.round(depth.position.x - focusX)},${Math.round(depth.position.y - focusY)}`;
   document.body.dataset.cameraReveal = `${Math.round(backShift.x)},${Math.round(foreShift.x)}`;

@@ -71,6 +71,7 @@ canvas {
   bottom: 16px;
   display: grid;
   grid-template-columns: 44px 0fr auto;
+  grid-template-rows: auto 0;
   align-items: center;
   gap: 8px;
   min-height: 44px;
@@ -88,6 +89,7 @@ canvas {
 
 .presence-dock[data-open="true"] {
   grid-template-columns: 44px minmax(230px, 1fr) auto;
+  grid-template-rows: auto 4px;
   border-color: rgba(255, 162, 93, 0.28);
   background: rgba(6, 2, 10, 0.86);
 }
@@ -180,6 +182,63 @@ canvas {
   background: linear-gradient(90deg, rgba(255, 162, 93, 0.5), rgba(188, 255, 176, 0.16), transparent);
 }
 
+.threshold-strip {
+  position: relative;
+  grid-column: 2 / -1;
+  width: 100%;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(248, 237, 248, 0.045);
+  box-shadow: inset 0 0 0 1px rgba(248, 237, 248, 0.035);
+  opacity: 0;
+  overflow: hidden;
+  transform: translateY(-3px);
+  transition: opacity 160ms ease, transform 180ms ease;
+}
+
+.presence-dock[data-open="true"] .threshold-strip {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.threshold-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: calc(var(--threshold-level) * 100%);
+  border-radius: inherit;
+  background: linear-gradient(90deg, rgba(157, 99, 229, 0.38), rgba(255, 162, 93, 0.5), rgba(188, 255, 176, 0.22));
+  box-shadow: 0 0 14px rgba(157, 99, 229, 0.18);
+  transition: width 240ms ease;
+}
+
+.presence-dock[data-tone="ember"] .threshold-fill {
+  background: linear-gradient(90deg, rgba(157, 99, 229, 0.34), rgba(255, 162, 93, 0.62), rgba(255, 162, 93, 0.16));
+}
+
+.presence-dock[data-tone="pistachio"] .threshold-fill {
+  background: linear-gradient(90deg, rgba(157, 99, 229, 0.34), rgba(188, 255, 176, 0.44), rgba(255, 162, 93, 0.18));
+}
+
+.threshold-cut {
+  position: absolute;
+  top: -2px;
+  width: 1px;
+  height: 8px;
+  background: rgba(248, 237, 248, 0.16);
+}
+
+.threshold-cut-a {
+  left: 24%;
+}
+
+.threshold-cut-b {
+  left: 46%;
+}
+
+.threshold-cut-c {
+  left: 62%;
+}
+
 @media (max-width: 720px) {
   .presence-dock {
     left: 12px;
@@ -190,12 +249,18 @@ canvas {
 
   .presence-dock[data-open="true"] {
     grid-template-columns: 42px minmax(0, 1fr);
-    grid-template-rows: auto auto;
+    grid-template-rows: auto auto 4px;
   }
 
   .presence-dock[data-open="true"] .presence-readout {
     grid-column: 1 / -1;
     padding: 0 8px 4px 10px;
+  }
+
+  .presence-dock[data-open="true"] .threshold-strip {
+    grid-column: 1 / -1;
+    margin: 0 8px 2px;
+    width: auto;
   }
 
   .dock-actions {

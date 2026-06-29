@@ -33,6 +33,7 @@ No old assets are required. If those files are missing, the app renders a proced
 ## Visual Invariants
 
 - The presence dock is the first app shell element: it may let a visitor tune a presence state, but it must stay compact, dark, and non-streamer, never a badge/reward bar.
+- Threshold state may translate a chosen presence into atmosphere, but it must stay personal and material, never points, rank, streaks, quests, or farming.
 - The character feet are anchored to the center floor circle through the background layer, not locked to the screen.
 - The camera uses a constrained single-axis cardinal arc, not a free 360 view; diagonal cursor input must resolve to one rail only, with zero visible cross-axis leak.
 - Touch input uses relative drag with capped camera catch-up, so placing or moving a finger cannot teleport the viewpoint; mobile must feel like the same scene camera as desktop, only touch-driven.
