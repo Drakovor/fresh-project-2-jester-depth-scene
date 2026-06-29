@@ -59,7 +59,7 @@ const state = {
   time: 0,
   pointer: { x: 0.5, y: 0.5, tx: 0.5, ty: 0.5 },
   camera: { axis: 'center', lastInputAxis: 'center' },
-  presence: { presence: 'unformed', resonance: 0, threshold: 0, phase: 'dormant' },
+  presence: { version: 'presence-threshold-v1', presence: 'unformed', resonance: 0, threshold: 0, phase: 'dormant', tone: 'violet' },
   input: {
     mode: 'hover',
     activePointerId: null,
@@ -272,6 +272,9 @@ foregroundLayer.addChild(cinematicDepthFrame);
 const sideSeparation = makeSideSeparationSystem();
 foregroundLayer.addChild(sideSeparation.container);
 
+const contrastOcclusion = makeContrastOcclusionSystem();
+foregroundLayer.addChild(contrastOcclusion.container);
+
 const rays = makeLightRays(10);
 midLayer.addChild(rays);
 
@@ -420,12 +423,16 @@ window.addEventListener('projectpresencechange', (event) => {
   state.presence.resonance = clamp(Number(detail.resonance) || 0, 0, 1);
   state.presence.threshold = clamp(Number(detail.threshold) || 0, 0, 1);
   state.presence.phase = typeof detail.phase === 'string' ? detail.phase : 'dormant';
+  state.presence.tone = typeof detail.tone === 'string' ? detail.tone : 'violet';
+  state.presence.version = typeof detail.version === 'string' ? detail.version : 'presence-threshold-v1';
 });
 if (window.__projectPresence) {
+  state.presence.version = window.__projectPresence.version ?? 'presence-threshold-v1';
   state.presence.presence = window.__projectPresence.presence;
   state.presence.resonance = clamp(Number(window.__projectPresence.resonance) || 0, 0, 1);
   state.presence.threshold = clamp(Number(window.__projectPresence.threshold) || 0, 0, 1);
   state.presence.phase = window.__projectPresence.phase ?? 'dormant';
+  state.presence.tone = window.__projectPresence.tone ?? 'violet';
 }
 layout();
 
@@ -576,6 +583,7 @@ function animateScene(dt) {
   cinematicDepthFrame.position.set(w * 0.5 + lookX * w * 0.016, h * 0.5 + lookY * h * 0.012);
   cinematicDepthFrame.scale.set(cinematicDepthFrame.baseScale * (1.002 + Math.abs(lookX) * 0.01));
   sideSeparation.update(t, w, h, lookX, lookY, orbit.axis, breathe, slowPulse, portraitFactor);
+  contrastOcclusion.update(t, w, h, lookX, lookY, orbit.axis, breathe, slowPulse, portraitFactor);
 
   animateParticles(particles, dt, w, h, t);
   animateMirrorMotes(
@@ -616,6 +624,9 @@ function animateScene(dt) {
   document.body.dataset.sideSeparationMode = 'cinematic-side-depth-separation';
   document.body.dataset.sideSeparationAxis = orbit.axis;
   document.body.dataset.sideSeparationAlpha = sideSeparation.alpha.toFixed(3);
+  document.body.dataset.contrastOcclusionMode = 'directional-contrast-occlusion';
+  document.body.dataset.contrastOcclusionAxis = orbit.axis;
+  document.body.dataset.contrastOcclusionAlpha = contrastOcclusion.alpha.toFixed(3);
   document.body.dataset.presenceTraceMode = 'non-ui-directional-presence-memory';
   document.body.dataset.presenceTraceAxis = orbit.axis;
   document.body.dataset.presenceTracePeak = presenceTrace.peak.toFixed(3);
@@ -644,6 +655,8 @@ function animateScene(dt) {
   document.body.dataset.appPresenceResonance = presenceResonance.toFixed(3);
   document.body.dataset.appThresholdPhase = state.presence.phase;
   document.body.dataset.appThresholdValue = thresholdPulse.toFixed(3);
+  document.body.dataset.appPresenceTone = state.presence.tone;
+  document.body.dataset.appModelVersion = state.presence.version;
   document.body.dataset.cameraPivot = `${Math.round(focusX)},${Math.round(focusY)}`;
   document.body.dataset.cameraShift = `${Math.round(depth.position.x - focusX)},${Math.round(depth.position.y - focusY)}`;
   document.body.dataset.cameraReveal = `${Math.round(backShift.x)},${Math.round(foreShift.x)}`;
@@ -2062,6 +2075,149 @@ function drawSideSeparation(shade, cuts, t, w, h, lookX, lookY, axis, breathe, s
     cuts.lineStyle(0.65 + depth * 0.8 + active * 0.35, color, lineAlpha);
     cuts.moveTo(x, y);
     cuts.lineTo(x + side * len, y + h * (0.012 - depth * 0.006));
+  }
+
+  return alpha;
+}
+
+function makeContrastOcclusionSystem() {
+  const container = new Container();
+  const shade = new Graphics();
+  const blades = new Graphics();
+  shade.blendMode = BLEND_MODES.MULTIPLY;
+  blades.blendMode = BLEND_MODES.ADD;
+  container.addChild(shade, blades);
+
+  const rng = createRng('directional-contrast-occlusion');
+  const sideBlades = [];
+  const ceilingCuts = [];
+
+  for (let i = 0; i < 18; i += 1) {
+    sideBlades.push({
+      side: i % 2 === 0 ? -1 : 1,
+      lane: randRange(rng, 0.055, 0.2),
+      y: randRange(rng, 0.12, 0.78),
+      depth: randRange(rng, 0.22, 1),
+      length: randRange(rng, 0.024, 0.072),
+      phase: randRange(rng, 0, Math.PI * 2),
+      color: i % 4 === 0 ? 0xffa25d : i % 4 === 1 ? 0xbcffb0 : 0x9d63e5,
+    });
+  }
+
+  for (let i = 0; i < 10; i += 1) {
+    ceilingCuts.push({
+      x: randRange(rng, 0.18, 0.84),
+      drop: randRange(rng, 0.12, 0.38),
+      lean: randRange(rng, -0.08, 0.08),
+      phase: randRange(rng, 0, Math.PI * 2),
+      color: i % 3 === 0 ? 0xffa25d : i % 3 === 1 ? 0x9d63e5 : 0xbcffb0,
+    });
+  }
+
+  return {
+    container,
+    alpha: 0,
+    update(t, w, h, lookX, lookY, axis, breathe, slowPulse, portraitFactor) {
+      this.alpha = drawContrastOcclusion(shade, blades, sideBlades, ceilingCuts, t, w, h, lookX, lookY, axis, breathe, slowPulse, portraitFactor);
+    },
+  };
+}
+
+function drawContrastOcclusion(shade, blades, sideBlades, ceilingCuts, t, w, h, lookX, lookY, axis, breathe, slowPulse, portraitFactor) {
+  const sideStrength = axis === 'x' ? Math.min(1, Math.abs(lookX) / CAMERA.orbitLimitX) : 0;
+  const verticalStrength = axis === 'y' ? Math.min(1, Math.abs(lookY) / CAMERA.orbitLimitY) : 0;
+  const active = Math.max(sideStrength, verticalStrength);
+  const upStrength = Math.max(0, -lookY) / CAMERA.orbitLimitY;
+  const downStrength = Math.max(0, lookY) / CAMERA.orbitLimitY;
+  const alpha = clamp(0.22 + breathe * 0.024 + active * 0.045 - portraitFactor * 0.018, 0.19, 0.32);
+
+  shade.clear();
+  shade.alpha = alpha;
+
+  for (const side of [-1, 1]) {
+    const reveal = axis === 'x' ? clamp(side * lookX / CAMERA.orbitLimitX, -0.24, 1) : 0.18 + verticalStrength * 0.08;
+    const pressure = clamp(0.36 - reveal * 0.08 + active * 0.05, 0.24, 0.44);
+    const edgeX = side < 0 ? -w * 0.08 : w * 1.08;
+    const innerTop = side < 0 ? w * (0.18 + reveal * 0.042) : w * (0.84 - reveal * 0.042);
+    const innerMid = side < 0 ? w * (0.27 + reveal * 0.035) : w * (0.75 - reveal * 0.035);
+    const innerLow = side < 0 ? w * (0.18 + reveal * 0.028) : w * (0.86 - reveal * 0.028);
+
+    shade.beginFill(0x020105, pressure);
+    shade.drawPolygon([
+      edgeX, -h * 0.08,
+      innerTop + lookX * w * 0.012, h * 0.06,
+      innerMid, h * (0.48 + lookY * 0.018),
+      innerLow + lookX * w * 0.015, h * 1.08,
+      edgeX, h * 1.08,
+    ]);
+    shade.endFill();
+
+    shade.beginFill(0x0b0312, clamp(0.14 + active * 0.035 - portraitFactor * 0.025, 0.08, 0.19));
+    shade.drawPolygon([
+      edgeX, h * 0.22,
+      innerTop + side * w * 0.04, h * (0.24 + lookY * 0.012),
+      innerMid + side * w * 0.026, h * 0.7,
+      edgeX, h * 0.9,
+    ]);
+    shade.endFill();
+  }
+
+  shade.beginFill(0x020105, 0.24 + upStrength * 0.2);
+  shade.drawPolygon([
+    0, 0,
+    w, 0,
+    w * (0.78 - lookX * 0.018), h * (0.17 + upStrength * 0.035),
+    w * (0.25 - lookX * 0.014), h * (0.2 + upStrength * 0.038),
+  ]);
+  shade.endFill();
+
+  shade.beginFill(0x030107, 0.16 + downStrength * 0.16);
+  shade.drawPolygon([
+    0, h,
+    w * 0.34, h,
+    w * (0.39 + lookX * 0.018), h * (0.83 - downStrength * 0.02),
+    w * 0.08, h * 0.76,
+  ]);
+  shade.endFill();
+  shade.beginFill(0x030107, 0.16 + downStrength * 0.16);
+  shade.drawPolygon([
+    w, h,
+    w * 0.7, h,
+    w * (0.65 + lookX * 0.018), h * (0.83 - downStrength * 0.02),
+    w * 0.94, h * 0.76,
+  ]);
+  shade.endFill();
+
+  blades.clear();
+  blades.alpha = 0.22 + slowPulse * 0.07 + active * 0.08;
+
+  for (const blade of sideBlades) {
+    const reveal = axis === 'x'
+      ? clamp(0.12 + blade.side * lookX / CAMERA.orbitLimitX, 0.02, 1)
+      : 0.18 + verticalStrength * 0.18;
+    const pulse = Math.max(0, Math.sin(t * (0.24 + blade.depth * 0.2) + blade.phase));
+    const x0 = blade.side < 0 ? w * blade.lane : w * (1 - blade.lane);
+    const y0 = h * blade.y + lookY * h * (0.006 + blade.depth * 0.014);
+    const len = w * blade.length * (0.8 + reveal * 1.2);
+    const y1 = y0 + h * (0.008 + blade.depth * 0.012);
+    const alphaLine = (0.014 + reveal * 0.05 + pulse * 0.024) * (blade.color === 0xbcffb0 ? 0.62 : 1);
+
+    blades.lineStyle(0.55 + blade.depth * 1.0 + active * 0.32, blade.color, alphaLine);
+    blades.moveTo(x0, y0);
+    blades.lineTo(x0 + blade.side * len, y1);
+  }
+
+  for (const cut of ceilingCuts) {
+    const pulse = Math.max(0, Math.sin(t * 0.19 + cut.phase));
+    const x0 = w * cut.x + lookX * w * 0.02;
+    const y0 = h * 0.02;
+    const x1 = x0 + w * (cut.lean + lookX * 0.012);
+    const y1 = h * (cut.drop + upStrength * 0.05);
+    const alphaLine = (0.012 + upStrength * 0.06 + pulse * 0.018) * (cut.color === 0xbcffb0 ? 0.58 : 1);
+
+    blades.lineStyle(0.55 + upStrength * 1.0, cut.color, alphaLine);
+    blades.moveTo(x0, y0);
+    blades.lineTo(x1, y1);
   }
 
   return alpha;

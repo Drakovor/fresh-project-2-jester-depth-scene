@@ -1,34 +1,15 @@
-const PRESENCES = [
-  {
-    id: 'softness',
-    label: 'Softness',
-    tone: 'violet',
-    resonance: 0.42,
-    threshold: 0.34,
-  },
-  {
-    id: 'defiance',
-    label: 'Defiance',
-    tone: 'ember',
-    resonance: 0.7,
-    threshold: 0.68,
-  },
-  {
-    id: 'static',
-    label: 'Static',
-    tone: 'pistachio',
-    resonance: 0.56,
-    threshold: 0.52,
-  },
-];
+import {
+  APP_MODEL_VERSION,
+  DEFAULT_PRESENCE_STATE,
+  PRESENCES,
+  createPresenceState,
+  loadPresenceState,
+  savePresenceState,
+} from './presence-model.js';
 
 const shellState = {
   open: false,
-  presence: 'unformed',
-  resonance: 0,
-  threshold: 0,
-  phase: 'dormant',
-  tone: 'violet',
+  ...DEFAULT_PRESENCE_STATE,
 };
 
 function emitPresence() {
@@ -36,13 +17,6 @@ function emitPresence() {
   window.dispatchEvent(new CustomEvent('projectpresencechange', {
     detail: window.__projectPresence,
   }));
-}
-
-function phaseFromThreshold(value) {
-  if (value >= 0.62) return 'unbound';
-  if (value >= 0.46) return 'awake';
-  if (value >= 0.24) return 'veiled';
-  return 'dormant';
 }
 
 function setDockState(dock, readout, phase, level, selected) {
@@ -55,9 +29,10 @@ function setDockState(dock, readout, phase, level, selected) {
 function renderShell() {
   const mount = document.getElementById('app-shell');
   if (!mount) return;
+  Object.assign(shellState, loadPresenceState());
 
   mount.innerHTML = `
-    <div class="presence-dock" data-open="false" data-phase="dormant" data-tone="violet" style="--threshold-level: 0">
+    <div class="presence-dock" data-open="false" data-phase="${shellState.phase}" data-tone="${shellState.tone}" data-model="${APP_MODEL_VERSION}" style="--threshold-level: ${shellState.threshold}">
       <button class="dock-mark" type="button" aria-label="Open presence">
         <span>JD</span>
       </button>
@@ -75,7 +50,7 @@ function renderShell() {
         `).join('')}
       </div>
       <div class="presence-readout" aria-live="polite">
-        <span class="readout-key">dormant</span>
+        <span class="readout-key">${shellState.presence === 'unformed' ? shellState.phase : `${shellState.presence} / ${shellState.phase}`}</span>
         <span class="readout-line"></span>
       </div>
       <div class="threshold-strip" aria-hidden="true">
@@ -103,11 +78,7 @@ function renderShell() {
       const selected = PRESENCES.find((presence) => presence.id === button.dataset.presence);
       if (!selected) return;
 
-      shellState.presence = selected.id;
-      shellState.resonance = selected.resonance;
-      shellState.threshold = selected.threshold;
-      shellState.phase = phaseFromThreshold(selected.threshold);
-      shellState.tone = selected.tone;
+      Object.assign(shellState, savePresenceState(createPresenceState(selected.id)));
       setDockState(dock, readout, shellState.phase, shellState.threshold, selected);
 
       for (const choice of choices) {
@@ -118,7 +89,17 @@ function renderShell() {
     });
   }
 
-  setDockState(dock, readout, shellState.phase, shellState.threshold, null);
+  for (const choice of choices) {
+    choice.setAttribute('aria-pressed', String(choice.dataset.presence === shellState.presence));
+  }
+
+  setDockState(
+    dock,
+    readout,
+    shellState.phase,
+    shellState.threshold,
+    PRESENCES.find((presence) => presence.id === shellState.presence) ?? null,
+  );
   emitPresence();
 }
 

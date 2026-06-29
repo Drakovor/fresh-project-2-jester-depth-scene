@@ -3,7 +3,7 @@
   "source_boundary": "Only assets generated for this workspace are used by the app.",
   "art_direction": "Adult feminine wicked jester, elegant and seductive without performance cliche, deep purple personal underworld, no dragon in first scene, no performance venue, no monarchic setting, no sacred setting, no medieval sorcerer setting, no cathedral/church architecture, no theater/stage framing.",
   "layering_strategy": "Generated background and character are separate assets. Motion, foreground haze, lighting, parallax, depth and eye/cloth micro-movement are produced by the WebGL app.",
-  "application_strategy": "The first app shell is a compact presence dock with a threshold state: user-facing identity/affinity can influence atmosphere without badges, farming, mini-games, rewards, streamer overlays, rankings, or visible tutorial text.",
+  "application_strategy": "The first app shell is a compact presence dock with a versioned threshold state persisted locally: user-facing identity/affinity can influence atmosphere without badges, farming, mini-games, rewards, streamer overlays, rankings, tracking, or visible tutorial text.",
   "runtime_visual_system": {
     "camera": "Constrained single-axis cardinal rail with left/right and up/down reveal, no free 360 orbit; diagonal cursor input resolves to one rail only with zero visible cross-axis leak.",
     "touch_input": "Mobile touch uses relative drag with smoothed catch-up and a no-teleport gate; finger placement does not jump the viewpoint and fast drag eases into the same final camera amplitude.",
@@ -15,6 +15,7 @@
     "threshold_pressure": "Code-generated peripheral pressure threads and floor cuts respond to the same camera rail, adding living tension around the room while protecting the subject lane from visual clutter.",
     "depth_shear": "Code-generated anamorphic side and floor traces follow the active camera rail, adding cinematic depth without UI, stage beams, central haze, or external assets.",
     "side_depth_separation": "Code-generated cinematic side planes and fine glints sculpt side depth, preserving the central clarity lane and staying behind the character.",
+    "contrast_occlusion": "Code-generated directional multiply occlusion deepens side walls, ceiling, and floor edges while additive micro-cuts preserve premium material detail without pale haze.",
     "presence_memory": "A code-generated non-UI directional trace lets the room remember exploration subtly, forming a future concept seed without badges, rewards, quests, or streamer overlays.",
     "subject_matte": "A blurred negative-fill matte behind the generated character sculpts premium subject clarity without becoming a black halo or stage spotlight.",
     "contact_reflection": "A subtle mirrored reflection of the generated character texture is compressed into the floor plane and follows the projected foot anchor for premium grounding.",

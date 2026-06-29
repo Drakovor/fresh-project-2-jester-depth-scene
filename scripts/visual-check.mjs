@@ -73,6 +73,7 @@ async function checkViewport(browser, viewport, consoleMessages) {
     viewport: { width: viewport.width, height: viewport.height },
     deviceScaleFactor: 1,
   });
+  await page.addInitScript(() => localStorage.removeItem('jester-depth.presence.v1'));
   const screenshotFile = fileURLToPath(new URL(`visual-check-${viewport.name}.png`, outDir));
   const motionAFile = fileURLToPath(new URL(`visual-motion-a-${viewport.name}.png`, outDir));
   const motionBFile = fileURLToPath(new URL(`visual-motion-b-${viewport.name}.png`, outDir));
@@ -248,12 +249,22 @@ async function checkAppShell(browser, consoleMessages) {
         readout: document.querySelector('.readout-key')?.textContent,
       };
     });
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.waitForFunction(
+      () => document.body.dataset.sceneReady === 'true' && document.querySelector('.dock-mark'),
+      { timeout: 15000 },
+    );
+    await page.waitForTimeout(500);
+    const restored = await readSceneState(page, 'app-shell-restored');
+    const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('jester-depth.presence.v1')));
 
     return {
       viewport,
       initial,
       selected,
+      restored,
       shell,
+      stored,
     };
   } finally {
     await page.close();
@@ -408,6 +419,9 @@ function evaluateQualityGates(report) {
       assertGate(failures, sample.sideSeparationMode === 'cinematic-side-depth-separation', `${name}/${sample.sample}: side separation mode is ${sample.sideSeparationMode}`);
       assertGate(failures, sample.sideSeparationAxis === sample.cameraAxis, `${name}/${sample.sample}: side separation axis ${sample.sideSeparationAxis} does not match camera ${sample.cameraAxis}`);
       assertGate(failures, sample.sideSeparationAlpha >= 0.13 && sample.sideSeparationAlpha <= 0.24, `${name}/${sample.sample}: side separation alpha out of range (${sample.sideSeparationAlpha})`);
+      assertGate(failures, sample.contrastOcclusionMode === 'directional-contrast-occlusion', `${name}/${sample.sample}: contrast occlusion mode is ${sample.contrastOcclusionMode}`);
+      assertGate(failures, sample.contrastOcclusionAxis === sample.cameraAxis, `${name}/${sample.sample}: contrast occlusion axis ${sample.contrastOcclusionAxis} does not match camera ${sample.cameraAxis}`);
+      assertGate(failures, sample.contrastOcclusionAlpha >= 0.18 && sample.contrastOcclusionAlpha <= 0.34, `${name}/${sample.sample}: contrast occlusion alpha out of range (${sample.contrastOcclusionAlpha})`);
       assertGate(failures, sample.presenceTraceMode === 'non-ui-directional-presence-memory', `${name}/${sample.sample}: presence trace mode is ${sample.presenceTraceMode}`);
       assertGate(failures, sample.presenceTraceAxis === sample.cameraAxis, `${name}/${sample.sample}: presence trace axis ${sample.presenceTraceAxis} does not match camera ${sample.cameraAxis}`);
       assertGate(failures, sample.presenceTracePeak >= 0 && sample.presenceTracePeak <= 0.72, `${name}/${sample.sample}: presence trace peak out of range (${sample.presenceTracePeak})`);
@@ -436,6 +450,8 @@ function evaluateQualityGates(report) {
       assertGate(failures, sample.appPresenceResonance === 0, `${name}/${sample.sample}: app presence resonance default is ${sample.appPresenceResonance}`);
       assertGate(failures, sample.appThresholdPhase === 'dormant', `${name}/${sample.sample}: app threshold phase default is ${sample.appThresholdPhase}`);
       assertGate(failures, sample.appThresholdValue === 0, `${name}/${sample.sample}: app threshold value default is ${sample.appThresholdValue}`);
+      assertGate(failures, sample.appPresenceTone === 'violet', `${name}/${sample.sample}: app presence tone default is ${sample.appPresenceTone}`);
+      assertGate(failures, sample.appModelVersion === 'presence-threshold-v1', `${name}/${sample.sample}: app model version is ${sample.appModelVersion}`);
       assertGate(failures, sample.anchorLayer === 'backgroundLayer', `${name}/${sample.sample}: anchorLayer is ${sample.anchorLayer}`);
       assertGate(failures, sample.canvas?.width === width && sample.canvas?.height === height, `${name}/${sample.sample}: canvas is ${sample.canvas?.width}x${sample.canvas?.height}`);
       assertGate(failures, isFootInside(sample.subjectFoot, width, height), `${name}/${sample.sample}: subjectFoot out of viewport (${sample.subjectFoot})`);
@@ -480,17 +496,25 @@ function evaluateTouchGates(failures, touchInput) {
 }
 
 function evaluateAppShellGates(failures, appShell) {
+  assertGate(failures, appShell.initial.appModelVersion === 'presence-threshold-v1', `app shell model version is ${appShell.initial.appModelVersion}`);
   assertGate(failures, appShell.initial.appPresence === 'unformed', `app shell initial presence is ${appShell.initial.appPresence}`);
   assertGate(failures, appShell.initial.appThresholdPhase === 'dormant', `app shell initial phase is ${appShell.initial.appThresholdPhase}`);
   assertGate(failures, appShell.initial.appThresholdValue === 0, `app shell initial threshold is ${appShell.initial.appThresholdValue}`);
+  assertGate(failures, appShell.initial.appPresenceTone === 'violet', `app shell initial tone is ${appShell.initial.appPresenceTone}`);
   assertGate(failures, appShell.shell.dockOpen === 'true', `app shell dock open is ${appShell.shell.dockOpen}`);
   assertGate(failures, appShell.shell.selectedPressed === 'true', `app shell selected pressed is ${appShell.shell.selectedPressed}`);
   assertGate(failures, appShell.selected.appPresence === 'defiance', `app shell selected presence is ${appShell.selected.appPresence}`);
   assertGate(failures, appShell.selected.appPresenceResonance >= 0.68, `app shell selected resonance too low (${appShell.selected.appPresenceResonance})`);
   assertGate(failures, appShell.selected.appThresholdPhase === 'unbound', `app shell selected phase is ${appShell.selected.appThresholdPhase}`);
   assertGate(failures, appShell.selected.appThresholdValue >= 0.66, `app shell selected threshold too low (${appShell.selected.appThresholdValue})`);
+  assertGate(failures, appShell.selected.appPresenceTone === 'ember', `app shell selected tone is ${appShell.selected.appPresenceTone}`);
   assertGate(failures, appShell.shell.dockPhase === 'unbound', `app shell dock phase is ${appShell.shell.dockPhase}`);
   assertGate(failures, Number(appShell.shell.thresholdLevel) >= 0.66, `app shell threshold level too low (${appShell.shell.thresholdLevel})`);
+  assertGate(failures, appShell.restored.appPresence === 'defiance', `app shell restored presence is ${appShell.restored.appPresence}`);
+  assertGate(failures, appShell.restored.appThresholdPhase === 'unbound', `app shell restored phase is ${appShell.restored.appThresholdPhase}`);
+  assertGate(failures, appShell.restored.appThresholdValue >= 0.66, `app shell restored threshold too low (${appShell.restored.appThresholdValue})`);
+  assertGate(failures, appShell.stored?.version === 'presence-threshold-v1', `app shell stored version is ${appShell.stored?.version}`);
+  assertGate(failures, appShell.stored?.presence === 'defiance', `app shell stored presence is ${appShell.stored?.presence}`);
 }
 
 function assertGate(failures, condition, message) {
@@ -621,6 +645,9 @@ async function readSceneState(page, sample) {
       sideSeparationMode: document.body.dataset.sideSeparationMode,
       sideSeparationAxis: document.body.dataset.sideSeparationAxis,
       sideSeparationAlpha: Number(document.body.dataset.sideSeparationAlpha),
+      contrastOcclusionMode: document.body.dataset.contrastOcclusionMode,
+      contrastOcclusionAxis: document.body.dataset.contrastOcclusionAxis,
+      contrastOcclusionAlpha: Number(document.body.dataset.contrastOcclusionAlpha),
       presenceTraceMode: document.body.dataset.presenceTraceMode,
       presenceTraceAxis: document.body.dataset.presenceTraceAxis,
       presenceTracePeak: Number(document.body.dataset.presenceTracePeak),
@@ -649,6 +676,8 @@ async function readSceneState(page, sample) {
       appPresenceResonance: Number(document.body.dataset.appPresenceResonance),
       appThresholdPhase: document.body.dataset.appThresholdPhase,
       appThresholdValue: Number(document.body.dataset.appThresholdValue),
+      appPresenceTone: document.body.dataset.appPresenceTone,
+      appModelVersion: document.body.dataset.appModelVersion,
       subjectFoot: document.body.dataset.subjectFoot,
       anchorLocal: document.body.dataset.anchorLocal,
       anchorLayer: document.body.dataset.anchorLayer,

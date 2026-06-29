@@ -34,6 +34,7 @@ No old assets are required. If those files are missing, the app renders a proced
 
 - The presence dock is the first app shell element: it may let a visitor tune a presence state, but it must stay compact, dark, and non-streamer, never a badge/reward bar.
 - Threshold state may translate a chosen presence into atmosphere, but it must stay personal and material, never points, rank, streaks, quests, or farming.
+- Presence state persistence may remember the visitor's chosen tone locally, but it must remain a versioned universe state, not analytics, scoring, tracking, or hidden progression.
 - The character feet are anchored to the center floor circle through the background layer, not locked to the screen.
 - The camera uses a constrained single-axis cardinal arc, not a free 360 view; diagonal cursor input must resolve to one rail only, with zero visible cross-axis leak.
 - Touch input uses relative drag with capped camera catch-up, so placing or moving a finger cannot teleport the viewpoint; mobile must feel like the same scene camera as desktop, only touch-driven.
@@ -44,6 +45,7 @@ No old assets are required. If those files are missing, the app renders a proced
 - Peripheral threshold pressure adds subtle responsive tension in side walls and floor cuts, keeping the center clear while making the room feel awake.
 - Axis-bound anamorphic depth shear may add thin optical edge/floor traces, but it must follow the camera rail and never become UI, stage beams, or central haze.
 - Cinematic side depth separation may sculpt darker side planes and thin glints, but it must stay behind the character and preserve the central clarity lane.
+- Directional contrast occlusion may deepen side walls, ceiling, and floor edges, but it must stay behind the character and never wash the room into pale haze.
 - Non-UI directional presence memory may leave subtle traces from exploration, but it must read as the room remembering movement, never as badges, rewards, quests, or streamer overlay UI.
 - Cinematic negative fill may darken the room immediately behind the subject to sculpt clarity, but it must stay behind her and never become a visible black halo.
 - The scene-anchored contact reflection stays subtle and floor-bound so the character feels grounded without becoming a duplicated figure.
