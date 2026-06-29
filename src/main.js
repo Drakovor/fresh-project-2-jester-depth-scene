@@ -285,6 +285,9 @@ foregroundLayer.addChild(cinematicDepthFrame);
 const sideSeparation = makeSideSeparationSystem();
 foregroundLayer.addChild(sideSeparation.container);
 
+const creaseOcclusion = makeCreaseOcclusionSystem();
+foregroundLayer.addChild(creaseOcclusion.container);
+
 const contrastOcclusion = makeContrastOcclusionSystem();
 foregroundLayer.addChild(contrastOcclusion.container);
 
@@ -599,6 +602,7 @@ function animateScene(dt) {
   cinematicDepthFrame.position.set(w * 0.5 + lookX * w * 0.016, h * 0.5 + lookY * h * 0.012);
   cinematicDepthFrame.scale.set(cinematicDepthFrame.baseScale * (1.002 + Math.abs(lookX) * 0.01));
   sideSeparation.update(t, w, h, lookX, lookY, orbit.axis, breathe, slowPulse, portraitFactor);
+  creaseOcclusion.update(t, w, h, lookX, lookY, orbit.axis, breathe, slowPulse, portraitFactor);
   contrastOcclusion.update(t, w, h, lookX, lookY, orbit.axis, breathe, slowPulse, portraitFactor);
 
   animateParticles(particles, dt, w, h, t);
@@ -646,6 +650,9 @@ function animateScene(dt) {
   document.body.dataset.sideSeparationMode = 'cinematic-side-depth-separation';
   document.body.dataset.sideSeparationAxis = orbit.axis;
   document.body.dataset.sideSeparationAlpha = sideSeparation.alpha.toFixed(3);
+  document.body.dataset.creaseOcclusionMode = 'architectural-crease-occlusion';
+  document.body.dataset.creaseOcclusionAxis = orbit.axis;
+  document.body.dataset.creaseOcclusionAlpha = creaseOcclusion.alpha.toFixed(3);
   document.body.dataset.contrastOcclusionMode = 'directional-contrast-occlusion';
   document.body.dataset.contrastOcclusionAxis = orbit.axis;
   document.body.dataset.contrastOcclusionAlpha = contrastOcclusion.alpha.toFixed(3);
@@ -2468,6 +2475,159 @@ function drawSideSeparation(shade, cuts, t, w, h, lookX, lookY, axis, breathe, s
     cuts.lineStyle(0.65 + depth * 0.8 + active * 0.35, color, lineAlpha);
     cuts.moveTo(x, y);
     cuts.lineTo(x + side * len, y + h * (0.012 - depth * 0.006));
+  }
+
+  return alpha;
+}
+
+function makeCreaseOcclusionSystem() {
+  const container = new Container();
+  const shade = new Graphics();
+  const cuts = new Graphics();
+  shade.blendMode = BLEND_MODES.MULTIPLY;
+  cuts.blendMode = BLEND_MODES.ADD;
+  container.addChild(shade, cuts);
+
+  const rng = createRng('architectural-crease-occlusion');
+  const sideCreases = [];
+  const floorCreases = [];
+
+  for (let i = 0; i < 30; i += 1) {
+    sideCreases.push({
+      side: i % 2 === 0 ? -1 : 1,
+      lane: randRange(rng, 0.065, 0.255),
+      y: randRange(rng, 0.12, 0.82),
+      depth: randRange(rng, 0.16, 1),
+      length: randRange(rng, 0.05, 0.18),
+      phase: randRange(rng, 0, Math.PI * 2),
+      kink: randRange(rng, -0.035, 0.04),
+      color: i % 5 === 0 ? 0xbcffb0 : i % 3 === 0 ? 0xffa25d : 0x9d63e5,
+    });
+  }
+
+  for (let i = 0; i < 20; i += 1) {
+    floorCreases.push({
+      side: i % 2 === 0 ? -1 : 1,
+      depth: randRange(rng, 0.1, 0.9),
+      spread: randRange(rng, 0.2, 0.86),
+      phase: randRange(rng, 0, Math.PI * 2),
+      color: i % 4 === 0 ? 0xffa25d : i % 4 === 1 ? 0xbcffb0 : 0x9d63e5,
+    });
+  }
+
+  return {
+    container,
+    alpha: 0,
+    update(t, w, h, lookX, lookY, axis, breathe, slowPulse, portraitFactor) {
+      this.alpha = drawCreaseOcclusion(shade, cuts, sideCreases, floorCreases, t, w, h, lookX, lookY, axis, breathe, slowPulse, portraitFactor);
+    },
+  };
+}
+
+function drawCreaseOcclusion(shade, cuts, sideCreases, floorCreases, t, w, h, lookX, lookY, axis, breathe, slowPulse, portraitFactor) {
+  const sideStrength = axis === 'x' ? Math.min(1, Math.abs(lookX) / CAMERA.orbitLimitX) : 0;
+  const verticalStrength = axis === 'y' ? Math.min(1, Math.abs(lookY) / CAMERA.orbitLimitY) : 0;
+  const active = Math.max(sideStrength, verticalStrength);
+  const alpha = clamp(0.116 + breathe * 0.018 + active * 0.042 - portraitFactor * 0.026, 0.088, 0.172);
+  const vanishX = w * (0.53 - lookX * 0.014);
+  const vanishY = h * (0.48 + lookY * 0.012);
+  const floorX = w * ANCHOR.floorCircleX;
+  const floorY = h * ANCHOR.floorCircleY;
+
+  shade.clear();
+  shade.alpha = alpha;
+
+  for (const side of [-1, 1]) {
+    const reveal = axis === 'x' ? clamp(side * lookX / CAMERA.orbitLimitX, -0.22, 1) : 0.14 + verticalStrength * 0.12;
+    const fold = clamp(0.22 + active * 0.07 - reveal * 0.04 - portraitFactor * 0.055, 0.12, 0.3);
+    const edgeX = side < 0 ? -w * 0.04 : w * 1.04;
+    const innerTop = side < 0 ? w * (0.11 + reveal * 0.036) : w * (0.91 - reveal * 0.036);
+    const innerMid = side < 0 ? w * (0.22 + reveal * 0.045) : w * (0.8 - reveal * 0.045);
+    const innerLow = side < 0 ? w * (0.16 + reveal * 0.038) : w * (0.86 - reveal * 0.038);
+
+    shade.beginFill(0x010103, fold);
+    shade.drawPolygon([
+      edgeX,
+      h * 0.02,
+      innerTop + lookX * w * 0.006,
+      h * 0.13,
+      innerMid,
+      h * (0.51 + lookY * 0.012),
+      innerLow + lookX * w * 0.009,
+      h * 0.98,
+      edgeX,
+      h * 1.04,
+    ]);
+    shade.endFill();
+
+    shade.beginFill(0x030106, fold * 0.54);
+    shade.drawPolygon([
+      edgeX,
+      h * 0.62,
+      innerLow + side * w * 0.05,
+      h * (0.74 + lookY * 0.01),
+      side < 0 ? w * 0.36 : w * 0.66,
+      h * 1.05,
+      edgeX,
+      h * 1.05,
+    ]);
+    shade.endFill();
+  }
+
+  shade.beginFill(0x020104, clamp(0.075 + active * 0.035 - portraitFactor * 0.045, 0.025, 0.12));
+  shade.drawPolygon([
+    floorX - w * 0.42,
+    floorY + h * 0.14,
+    floorX - w * 0.2,
+    floorY + h * 0.038,
+    floorX + w * 0.22,
+    floorY + h * 0.038,
+    floorX + w * 0.46,
+    floorY + h * 0.15,
+    floorX + w * 0.32,
+    h * 1.05,
+    floorX - w * 0.34,
+    h * 1.05,
+  ]);
+  shade.endFill();
+
+  cuts.clear();
+  cuts.alpha = clamp(0.15 + slowPulse * 0.04 + active * 0.04 - portraitFactor * 0.025, 0.1, 0.22);
+
+  for (const crease of sideCreases) {
+    const reveal = axis === 'x'
+      ? clamp(0.12 + crease.side * lookX / CAMERA.orbitLimitX, 0.025, 1)
+      : 0.14 + verticalStrength * 0.18;
+    const wave = Math.max(0, Math.sin(t * (0.2 + crease.depth * 0.12) + crease.phase));
+    const x0 = crease.side < 0 ? w * crease.lane : w * (1 - crease.lane);
+    const y0 = h * crease.y + lookY * h * (0.006 + crease.depth * 0.012);
+    const x1 = x0 + crease.side * w * crease.length * (0.5 + reveal * 0.42);
+    const y1 = y0 + h * (crease.kink + Math.sin(t * 0.09 + crease.phase) * 0.006);
+    const centerGuard = clamp((Math.abs(x0 - w * 0.5) / (w * 0.5) - 0.16) * 1.5, 0, 1);
+    const localAlpha = (0.018 + reveal * 0.045 + wave * 0.02) * centerGuard * (crease.color === 0xbcffb0 ? 0.52 : 0.9);
+
+    cuts.lineStyle(0.42 + crease.depth * 0.82 + active * 0.16, crease.color, localAlpha);
+    cuts.moveTo(x0, y0);
+    cuts.quadraticCurveTo((x0 + x1) * 0.5 + crease.side * w * 0.02, y0 - h * 0.012, x1, y1);
+
+    if (crease.depth > 0.64) {
+      cuts.lineStyle(0.32 + crease.depth * 0.42, crease.color, localAlpha * 0.34);
+      cuts.moveTo(x0, y0);
+      cuts.lineTo(vanishX + crease.side * w * 0.028, vanishY + (crease.y - 0.5) * h * 0.16);
+    }
+  }
+
+  for (const crease of floorCreases) {
+    const wave = Math.max(0, Math.sin(t * 0.26 + crease.phase));
+    const x0 = floorX + crease.side * w * (0.15 + crease.spread * 0.16) + lookX * w * 0.008;
+    const x1 = floorX + crease.side * w * (0.25 + crease.spread * 0.31) + lookX * w * 0.012;
+    const y = floorY + h * (0.048 + crease.depth * 0.17 + Math.max(0, lookY) * 0.022);
+    const arc = h * (0.008 + crease.depth * 0.018);
+    const localAlpha = (0.014 + active * 0.034 + wave * 0.02) * (crease.color === 0xbcffb0 ? 0.54 : 0.86);
+
+    cuts.lineStyle(0.44 + crease.depth * 0.78 + active * 0.16, crease.color, localAlpha);
+    cuts.moveTo(x0, y);
+    cuts.quadraticCurveTo((x0 + x1) * 0.5, y - arc, x1, y + h * 0.004);
   }
 
   return alpha;

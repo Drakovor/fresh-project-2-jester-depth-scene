@@ -425,6 +425,9 @@ function evaluateQualityGates(report) {
       assertGate(failures, sample.sideSeparationMode === 'cinematic-side-depth-separation', `${name}/${sample.sample}: side separation mode is ${sample.sideSeparationMode}`);
       assertGate(failures, sample.sideSeparationAxis === sample.cameraAxis, `${name}/${sample.sample}: side separation axis ${sample.sideSeparationAxis} does not match camera ${sample.cameraAxis}`);
       assertGate(failures, sample.sideSeparationAlpha >= 0.13 && sample.sideSeparationAlpha <= 0.24, `${name}/${sample.sample}: side separation alpha out of range (${sample.sideSeparationAlpha})`);
+      assertGate(failures, sample.creaseOcclusionMode === 'architectural-crease-occlusion', `${name}/${sample.sample}: crease occlusion mode is ${sample.creaseOcclusionMode}`);
+      assertGate(failures, sample.creaseOcclusionAxis === sample.cameraAxis, `${name}/${sample.sample}: crease occlusion axis ${sample.creaseOcclusionAxis} does not match camera ${sample.cameraAxis}`);
+      assertGate(failures, sample.creaseOcclusionAlpha >= 0.08 && sample.creaseOcclusionAlpha <= 0.18, `${name}/${sample.sample}: crease occlusion alpha out of range (${sample.creaseOcclusionAlpha})`);
       assertGate(failures, sample.contrastOcclusionMode === 'directional-contrast-occlusion', `${name}/${sample.sample}: contrast occlusion mode is ${sample.contrastOcclusionMode}`);
       assertGate(failures, sample.contrastOcclusionAxis === sample.cameraAxis, `${name}/${sample.sample}: contrast occlusion axis ${sample.contrastOcclusionAxis} does not match camera ${sample.cameraAxis}`);
       assertGate(failures, sample.contrastOcclusionAlpha >= 0.18 && sample.contrastOcclusionAlpha <= 0.34, `${name}/${sample.sample}: contrast occlusion alpha out of range (${sample.contrastOcclusionAlpha})`);
@@ -660,6 +663,9 @@ async function readSceneState(page, sample) {
       sideSeparationMode: document.body.dataset.sideSeparationMode,
       sideSeparationAxis: document.body.dataset.sideSeparationAxis,
       sideSeparationAlpha: Number(document.body.dataset.sideSeparationAlpha),
+      creaseOcclusionMode: document.body.dataset.creaseOcclusionMode,
+      creaseOcclusionAxis: document.body.dataset.creaseOcclusionAxis,
+      creaseOcclusionAlpha: Number(document.body.dataset.creaseOcclusionAlpha),
       contrastOcclusionMode: document.body.dataset.contrastOcclusionMode,
       contrastOcclusionAxis: document.body.dataset.contrastOcclusionAxis,
       contrastOcclusionAlpha: Number(document.body.dataset.contrastOcclusionAlpha),
