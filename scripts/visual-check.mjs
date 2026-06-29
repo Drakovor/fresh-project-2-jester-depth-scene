@@ -362,6 +362,9 @@ function evaluateQualityGates(report) {
       assertGate(failures, sample.floorReflectionAlpha >= 0.045 && sample.floorReflectionAlpha <= 0.11, `${name}/${sample.sample}: floor reflection alpha out of range (${sample.floorReflectionAlpha})`);
       assertGate(failures, sample.contactPressureMode === 'scene-anchored-contact-pressure', `${name}/${sample.sample}: contact pressure mode is ${sample.contactPressureMode}`);
       assertGate(failures, sample.contactPressureAlpha >= 0.08 && sample.contactPressureAlpha <= 0.16, `${name}/${sample.sample}: contact pressure alpha out of range (${sample.contactPressureAlpha})`);
+      assertGate(failures, sample.surfaceResonanceMode === 'scene-anchored-surface-resonance', `${name}/${sample.sample}: surface resonance mode is ${sample.surfaceResonanceMode}`);
+      assertGate(failures, sample.surfaceResonanceAxis === sample.cameraAxis, `${name}/${sample.sample}: surface resonance axis ${sample.surfaceResonanceAxis} does not match camera ${sample.cameraAxis}`);
+      assertGate(failures, sample.surfaceResonanceAlpha >= 0.08 && sample.surfaceResonanceAlpha <= 0.16, `${name}/${sample.sample}: surface resonance alpha out of range (${sample.surfaceResonanceAlpha})`);
       assertGate(failures, sample.characterRimMode === 'dual-tone-silhouette-separation', `${name}/${sample.sample}: character rim mode is ${sample.characterRimMode}`);
       assertGate(failures, isAlphaPairInRange(sample.characterRimAlpha, 0.024, 0.072), `${name}/${sample.sample}: character rim alpha out of range (${sample.characterRimAlpha})`);
       assertGate(failures, sample.subjectLustreMode === 'pose-locked-micro-lustre', `${name}/${sample.sample}: subject lustre mode is ${sample.subjectLustreMode}`);
@@ -371,6 +374,9 @@ function evaluateQualityGates(report) {
       assertGate(failures, sample.lensFringeAlpha >= 0.03 && sample.lensFringeAlpha <= 0.095, `${name}/${sample.sample}: lens fringe alpha out of range (${sample.lensFringeAlpha})`);
       assertGate(failures, sample.cinematicGrainMode === 'procedural-cinematic-grain', `${name}/${sample.sample}: cinematic grain mode is ${sample.cinematicGrainMode}`);
       assertGate(failures, sample.cinematicGrainAlpha >= 0.024 && sample.cinematicGrainAlpha <= 0.052, `${name}/${sample.sample}: cinematic grain alpha out of range (${sample.cinematicGrainAlpha})`);
+      assertGate(failures, sample.deepGradeMode === 'subtle-contrast-chroma-grade', `${name}/${sample.sample}: deep grade mode is ${sample.deepGradeMode}`);
+      assertGate(failures, sample.deepGradeContrast >= 0.038 && sample.deepGradeContrast <= 0.07, `${name}/${sample.sample}: deep grade contrast out of range (${sample.deepGradeContrast})`);
+      assertGate(failures, sample.deepGradeSaturation >= 0.05 && sample.deepGradeSaturation <= 0.082, `${name}/${sample.sample}: deep grade saturation out of range (${sample.deepGradeSaturation})`);
       assertGate(failures, sample.anchorLayer === 'backgroundLayer', `${name}/${sample.sample}: anchorLayer is ${sample.anchorLayer}`);
       assertGate(failures, sample.canvas?.width === width && sample.canvas?.height === height, `${name}/${sample.sample}: canvas is ${sample.canvas?.width}x${sample.canvas?.height}`);
       assertGate(failures, isFootInside(sample.subjectFoot, width, height), `${name}/${sample.sample}: subjectFoot out of viewport (${sample.subjectFoot})`);
@@ -551,6 +557,9 @@ async function readSceneState(page, sample) {
       floorReflectionAlpha: Number(document.body.dataset.floorReflectionAlpha),
       contactPressureMode: document.body.dataset.contactPressureMode,
       contactPressureAlpha: Number(document.body.dataset.contactPressureAlpha),
+      surfaceResonanceMode: document.body.dataset.surfaceResonanceMode,
+      surfaceResonanceAxis: document.body.dataset.surfaceResonanceAxis,
+      surfaceResonanceAlpha: Number(document.body.dataset.surfaceResonanceAlpha),
       characterRimMode: document.body.dataset.characterRimMode,
       characterRimAlpha: document.body.dataset.characterRimAlpha,
       subjectLustreMode: document.body.dataset.subjectLustreMode,
@@ -560,6 +569,9 @@ async function readSceneState(page, sample) {
       lensFringeAlpha: Number(document.body.dataset.lensFringeAlpha),
       cinematicGrainMode: document.body.dataset.cinematicGrainMode,
       cinematicGrainAlpha: Number(document.body.dataset.cinematicGrainAlpha),
+      deepGradeMode: document.body.dataset.deepGradeMode,
+      deepGradeContrast: Number(document.body.dataset.deepGradeContrast),
+      deepGradeSaturation: Number(document.body.dataset.deepGradeSaturation),
       subjectFoot: document.body.dataset.subjectFoot,
       anchorLocal: document.body.dataset.anchorLocal,
       anchorLayer: document.body.dataset.anchorLayer,
