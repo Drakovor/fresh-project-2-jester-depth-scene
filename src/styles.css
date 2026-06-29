@@ -55,7 +55,3 @@ canvas {
   touch-action: none;
   filter: contrast(1.17) saturate(1.16) brightness(1.02);
 }
-
-#app-shell {
-  display: none;
-}

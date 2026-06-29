@@ -12,7 +12,6 @@ import {
   TilingSprite,
   WRAP_MODES,
 } from 'pixi.js';
-import './app-shell.js';
 import './styles.css';
 
 const assetPath = (path) => `${import.meta.env.BASE_URL}${path.replace(/^\/+/, '')}`;
@@ -466,29 +465,6 @@ window.addEventListener('pointerleave', () => {
 });
 
 window.addEventListener('resize', layout);
-window.addEventListener('projectpresencechange', (event) => {
-  const detail = event.detail ?? {};
-  state.presence.presence = typeof detail.presence === 'string' ? detail.presence : 'unformed';
-  state.presence.resonance = clamp(Number(detail.resonance) || 0, 0, 1);
-  state.presence.threshold = clamp(Number(detail.threshold) || 0, 0, 1);
-  state.presence.phase = typeof detail.phase === 'string' ? detail.phase : 'dormant';
-  state.presence.tone = typeof detail.tone === 'string' ? detail.tone : 'violet';
-  state.presence.version = typeof detail.version === 'string' ? detail.version : 'presence-threshold-v1';
-});
-window.addEventListener('hollowmarkchange', (event) => {
-  syncHollowMarkState(event.detail ?? {});
-});
-if (window.__projectPresence) {
-  state.presence.version = window.__projectPresence.version ?? 'presence-threshold-v1';
-  state.presence.presence = window.__projectPresence.presence;
-  state.presence.resonance = clamp(Number(window.__projectPresence.resonance) || 0, 0, 1);
-  state.presence.threshold = clamp(Number(window.__projectPresence.threshold) || 0, 0, 1);
-  state.presence.phase = window.__projectPresence.phase ?? 'dormant';
-  state.presence.tone = window.__projectPresence.tone ?? 'violet';
-}
-if (window.__hollowMark) {
-  syncHollowMarkState(window.__hollowMark);
-}
 layout();
 
 app.ticker.add((delta) => {
@@ -819,12 +795,6 @@ function animateScene(dt) {
   document.body.dataset.deepGradeMode = 'subtle-contrast-chroma-grade';
   document.body.dataset.deepGradeContrast = gradeContrast.toFixed(3);
   document.body.dataset.deepGradeSaturation = gradeSaturation.toFixed(3);
-  document.body.dataset.appPresence = state.presence.presence;
-  document.body.dataset.appPresenceResonance = presenceResonance.toFixed(3);
-  document.body.dataset.appThresholdPhase = state.presence.phase;
-  document.body.dataset.appThresholdValue = thresholdPulse.toFixed(3);
-  document.body.dataset.appPresenceTone = state.presence.tone;
-  document.body.dataset.appModelVersion = state.presence.version;
   document.body.dataset.hollowMarkPulse = `${worldPressure.toFixed(3)},${worldClarity.toFixed(3)},${worldFracture.toFixed(3)}`;
   document.body.dataset.hollowMarkTick = String(state.hollow.tick);
   document.body.dataset.hollowMarkVisibleTraces = String(state.hollow.visibleTraceCount);

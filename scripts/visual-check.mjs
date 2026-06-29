@@ -53,8 +53,6 @@ try {
   report.qualityGates = evaluateQualityGates(report);
   report.touchInput = await checkTouchInput(browser, consoleMessages);
   evaluateTouchGates(report.qualityGates.failures, report.touchInput);
-  report.appShell = await checkAppShell(browser, consoleMessages);
-  evaluateAppShellGates(report.qualityGates.failures, report.appShell);
   report.passed = report.qualityGates.failures.length === 0;
 
   await writeFile(reportFile, JSON.stringify(report, null, 2));
@@ -209,137 +207,6 @@ async function checkTouchInput(browser, consoleMessages) {
   } finally {
     await page.close();
   }
-}
-
-async function checkAppShell(browser, consoleMessages) {
-  const viewport = { name: 'app-shell', width: 1440, height: 900 };
-  const page = await browser.newPage({
-    viewport: { width: viewport.width, height: viewport.height },
-    deviceScaleFactor: 1,
-  });
-
-  page.on('console', (message) => {
-    if (['error', 'warning'].includes(message.type())) {
-      consoleMessages.push({
-        viewport: viewport.name,
-        type: message.type(),
-        text: message.text(),
-      });
-    }
-  });
-
-  try {
-    await page.route('**/favicon.ico', (route) => route.fulfill({ status: 204, body: '' }));
-    await page.goto(makeUrl(viewport.name), { waitUntil: 'domcontentloaded', timeout: 15000 });
-    await page.waitForFunction(
-      () => document.body.dataset.sceneReady === 'true' && document.querySelector('.dock-mark'),
-      { timeout: 15000 },
-    );
-    await page.waitForTimeout(500);
-
-    const initial = await readSceneState(page, 'app-shell-initial');
-    await page.click('[data-view="mask"]');
-    await page.waitForTimeout(240);
-    const maskSurface = await readSurfaceState(page);
-    await page.click('[data-view="chronicle"]');
-    await page.waitForTimeout(240);
-    const chronicleSurface = await readSurfaceState(page);
-    await page.click('[data-view="creator"]');
-    await page.click('.surface-refresh');
-    await page.waitForTimeout(520);
-    const creatorSurface = await readSurfaceState(page);
-    await page.click('[data-view="world"]');
-    await page.waitForTimeout(180);
-    const worldSurface = await readSurfaceState(page);
-    await page.click('.dock-mark');
-    await page.click('[data-presence="defiance"]');
-    await page.waitForTimeout(420);
-    const selected = await readSceneState(page, 'app-shell-defiance');
-    await page.click('.hollow-toggle');
-    await page.click('[data-zone="pistachio-static"]');
-    await page.waitForTimeout(420);
-    const zoneSelected = await readSceneState(page, 'app-shell-zone-selected');
-    await page.click('[data-move="sever"]');
-    await page.waitForTimeout(420);
-    const moveSelected = await readSceneState(page, 'app-shell-move-selected');
-    await page.click('.commit-move');
-    await page.waitForTimeout(700);
-    const afterMove = await readSceneState(page, 'app-shell-after-move');
-    const shell = await page.evaluate(() => {
-      const dock = document.querySelector('.presence-dock');
-      const panel = document.querySelector('.hollow-panel');
-      const selectedZone = document.querySelector('.zone-choice[aria-selected="true"]');
-      const selectedMove = document.querySelector('.move-choice[aria-pressed="true"]');
-      const movePreview = document.querySelector('.move-preview');
-      const surface = document.querySelector('.world-surface');
-      const selectedSurfaceTab = document.querySelector('.surface-tab[aria-selected="true"]');
-      return {
-        dockOpen: dock?.dataset.open,
-        dockPhase: dock?.dataset.phase,
-        hollowOpen: panel?.dataset.open,
-        surfaceView: surface?.dataset.view,
-        surfaceStatus: surface?.dataset.status,
-        selectedSurfaceTab: selectedSurfaceTab?.dataset.view,
-        selectedZone: selectedZone?.dataset.zone,
-        selectedZoneState: selectedZone?.dataset.state,
-        selectedMove: selectedMove?.dataset.move,
-        previewSignal: movePreview?.dataset.signal,
-        previewNextState: movePreview?.dataset.nextState,
-        hollowTick: document.querySelector('.hollow-toggle b')?.textContent,
-        visibleTraceCount: document.querySelector('.trace-head b')?.textContent,
-        selectedPressed: document.querySelector('[data-presence="defiance"]')?.getAttribute('aria-pressed'),
-        thresholdLevel: getComputedStyle(dock).getPropertyValue('--threshold-level').trim(),
-        readout: document.querySelector('.readout-key')?.textContent,
-      };
-    });
-    await page.reload({ waitUntil: 'domcontentloaded' });
-    await page.waitForFunction(
-      () => document.body.dataset.sceneReady === 'true' && document.querySelector('.dock-mark'),
-      { timeout: 15000 },
-    );
-    await page.waitForTimeout(500);
-    const restored = await readSceneState(page, 'app-shell-restored');
-    const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('jester-depth.presence.v1')));
-
-    return {
-      viewport,
-      initial,
-      maskSurface,
-      chronicleSurface,
-      creatorSurface,
-      worldSurface,
-      selected,
-      zoneSelected,
-      moveSelected,
-      afterMove,
-      restored,
-      shell,
-      stored,
-    };
-  } finally {
-    await page.close();
-  }
-}
-
-async function readSurfaceState(page) {
-  return page.evaluate(() => {
-    const surface = document.querySelector('.world-surface');
-    return {
-      view: surface?.dataset.view,
-      status: surface?.dataset.status,
-      selectedTab: document.querySelector('.surface-tab[aria-selected="true"]')?.dataset.view,
-      metricCount: document.querySelectorAll('.surface-metric').length,
-      consequenceCount: document.querySelectorAll('.consequence-strip').length,
-      chronicleCount: document.querySelectorAll('.chronicle-event').length,
-      creatorStatCount: document.querySelectorAll('.creator-grid div').length,
-      maskPathCount: document.querySelectorAll('.mask-path-card').length,
-      maskCatalystCount: document.querySelectorAll('.mask-catalyst-grid div').length,
-      maskChainCount: document.querySelectorAll('.mask-chain-list').length,
-      relationRowCount: document.querySelectorAll('.relation-row').length,
-      signalCount: document.querySelectorAll('.signal-grid span').length,
-      zoneRows: document.querySelectorAll('.surface-zone').length,
-    };
-  });
 }
 
 async function dispatchTouchStep(page, step) {
@@ -552,12 +419,6 @@ function evaluateQualityGates(report) {
       assertGate(failures, sample.deepGradeMode === 'subtle-contrast-chroma-grade', `${name}/${sample.sample}: deep grade mode is ${sample.deepGradeMode}`);
       assertGate(failures, sample.deepGradeContrast >= 0.038 && sample.deepGradeContrast <= 0.07, `${name}/${sample.sample}: deep grade contrast out of range (${sample.deepGradeContrast})`);
       assertGate(failures, sample.deepGradeSaturation >= 0.05 && sample.deepGradeSaturation <= 0.082, `${name}/${sample.sample}: deep grade saturation out of range (${sample.deepGradeSaturation})`);
-      assertGate(failures, sample.appPresence === 'unformed', `${name}/${sample.sample}: app presence default is ${sample.appPresence}`);
-      assertGate(failures, sample.appPresenceResonance === 0, `${name}/${sample.sample}: app presence resonance default is ${sample.appPresenceResonance}`);
-      assertGate(failures, sample.appThresholdPhase === 'dormant', `${name}/${sample.sample}: app threshold phase default is ${sample.appThresholdPhase}`);
-      assertGate(failures, sample.appThresholdValue === 0, `${name}/${sample.sample}: app threshold value default is ${sample.appThresholdValue}`);
-      assertGate(failures, sample.appPresenceTone === 'violet', `${name}/${sample.sample}: app presence tone default is ${sample.appPresenceTone}`);
-      assertGate(failures, sample.appModelVersion === 'presence-threshold-v1', `${name}/${sample.sample}: app model version is ${sample.appModelVersion}`);
       assertGate(failures, sample.anchorLayer === 'backgroundLayer', `${name}/${sample.sample}: anchorLayer is ${sample.anchorLayer}`);
       assertGate(failures, sample.canvas?.width === width && sample.canvas?.height === height, `${name}/${sample.sample}: canvas is ${sample.canvas?.width}x${sample.canvas?.height}`);
       assertGate(failures, isFootInside(sample.subjectFoot, width, height), `${name}/${sample.sample}: subjectFoot out of viewport (${sample.subjectFoot})`);
@@ -599,64 +460,6 @@ function evaluateTouchGates(failures, touchInput) {
   assertGate(failures, touchInput.dragUp.cameraAxis === 'y', `touch up drag axis is ${touchInput.dragUp.cameraAxis}`);
   assertGate(failures, touchInput.dragUp.cameraArc <= -0.32, `touch up drag arc too weak (${touchInput.dragUp.cameraArc})`);
   assertGate(failures, Math.abs(touchInput.dragUp.cameraOrbit) <= 0.006, `touch up drag leaks horizontal orbit (${touchInput.dragUp.cameraOrbit})`);
-}
-
-function evaluateAppShellGates(failures, appShell) {
-  assertGate(failures, appShell.initial.appModelVersion === 'presence-threshold-v1', `app shell model version is ${appShell.initial.appModelVersion}`);
-  assertGate(failures, appShell.initial.appPresence === 'unformed', `app shell initial presence is ${appShell.initial.appPresence}`);
-  assertGate(failures, appShell.initial.appThresholdPhase === 'dormant', `app shell initial phase is ${appShell.initial.appThresholdPhase}`);
-  assertGate(failures, appShell.initial.appThresholdValue === 0, `app shell initial threshold is ${appShell.initial.appThresholdValue}`);
-  assertGate(failures, appShell.initial.appPresenceTone === 'violet', `app shell initial tone is ${appShell.initial.appPresenceTone}`);
-  assertGate(failures, appShell.shell.dockOpen === 'true', `app shell dock open is ${appShell.shell.dockOpen}`);
-  assertGate(failures, appShell.shell.selectedPressed === 'true', `app shell selected pressed is ${appShell.shell.selectedPressed}`);
-  assertGate(failures, appShell.selected.appPresence === 'defiance', `app shell selected presence is ${appShell.selected.appPresence}`);
-  assertGate(failures, appShell.selected.appPresenceResonance >= 0.68, `app shell selected resonance too low (${appShell.selected.appPresenceResonance})`);
-  assertGate(failures, appShell.selected.appThresholdPhase === 'unbound', `app shell selected phase is ${appShell.selected.appThresholdPhase}`);
-  assertGate(failures, appShell.selected.appThresholdValue >= 0.66, `app shell selected threshold too low (${appShell.selected.appThresholdValue})`);
-  assertGate(failures, appShell.selected.appPresenceTone === 'ember', `app shell selected tone is ${appShell.selected.appPresenceTone}`);
-  assertGate(failures, appShell.zoneSelected.zoneLoomActive === 'pistachio-static', `zone loom active after zone select is ${appShell.zoneSelected.zoneLoomActive}`);
-  assertGate(failures, ['pressured', 'fractured'].includes(appShell.zoneSelected.zoneLoomState), `zone loom state after zone select is ${appShell.zoneSelected.zoneLoomState}`);
-  assertGate(failures, appShell.zoneSelected.zoneLoomIntensity >= appShell.selected.zoneLoomIntensity, `zone loom intensity did not rise after zone select (${appShell.selected.zoneLoomIntensity} -> ${appShell.zoneSelected.zoneLoomIntensity})`);
-  assertGate(failures, appShell.zoneSelected.moveForecastMove === 'mark', `move forecast before move select is ${appShell.zoneSelected.moveForecastMove}`);
-  assertGate(failures, appShell.moveSelected.moveForecastMove === 'sever', `move forecast after move select is ${appShell.moveSelected.moveForecastMove}`);
-  assertGate(failures, appShell.moveSelected.moveForecastSignal === 'visible', `move forecast signal after move select is ${appShell.moveSelected.moveForecastSignal}`);
-  assertGate(failures, ['pressured', 'fractured'].includes(appShell.moveSelected.moveForecastNextState), `move forecast next state after move select is ${appShell.moveSelected.moveForecastNextState}`);
-  assertGate(failures, appShell.moveSelected.moveForecastRisk > appShell.zoneSelected.moveForecastRisk, `move forecast risk did not rise after sever (${appShell.zoneSelected.moveForecastRisk} -> ${appShell.moveSelected.moveForecastRisk})`);
-  assertGate(failures, appShell.afterMove.hollowMarkTick >= 1, `app shell hollow mark tick did not advance (${appShell.afterMove.hollowMarkTick})`);
-  assertGate(failures, appShell.afterMove.hollowMarkVisibleTraces >= 1, `app shell visible traces did not advance (${appShell.afterMove.hollowMarkVisibleTraces})`);
-  assertGate(failures, appShell.afterMove.zoneLoomActive === 'pistachio-static', `zone loom active after move is ${appShell.afterMove.zoneLoomActive}`);
-  assertGate(failures, appShell.afterMove.zoneLoomIntensity >= appShell.zoneSelected.zoneLoomIntensity, `zone loom intensity weakened after move (${appShell.zoneSelected.zoneLoomIntensity} -> ${appShell.afterMove.zoneLoomIntensity})`);
-  assertGate(failures, appShell.afterMove.zoneLoomHotCount >= 1, `zone loom hot count after move is ${appShell.afterMove.zoneLoomHotCount}`);
-  assertGate(failures, appShell.afterMove.maskResonanceDrive === 'defiance', `app shell mask resonance drive after move is ${appShell.afterMove.maskResonanceDrive}`);
-  assertGate(failures, appShell.afterMove.maskResonanceVisibility > appShell.selected.maskResonanceVisibility, `mask resonance visibility did not react after move (${appShell.selected.maskResonanceVisibility} -> ${appShell.afterMove.maskResonanceVisibility})`);
-  assertGate(failures, appShell.afterMove.maskResonanceAlpha >= appShell.selected.maskResonanceAlpha, `mask resonance alpha weakened after move (${appShell.selected.maskResonanceAlpha} -> ${appShell.afterMove.maskResonanceAlpha})`);
-  assertGate(failures, appShell.shell.dockPhase === 'unbound', `app shell dock phase is ${appShell.shell.dockPhase}`);
-  assertGate(failures, appShell.shell.hollowOpen === 'true', `app shell hollow panel open is ${appShell.shell.hollowOpen}`);
-  assertGate(failures, appShell.shell.selectedZone === 'pistachio-static', `app shell selected zone is ${appShell.shell.selectedZone}`);
-  assertGate(failures, ['pressured', 'fractured'].includes(appShell.shell.selectedZoneState), `app shell selected zone state is ${appShell.shell.selectedZoneState}`);
-  assertGate(failures, appShell.shell.selectedMove === 'sever', `app shell selected move is ${appShell.shell.selectedMove}`);
-  assertGate(failures, appShell.shell.previewSignal === 'visible', `app shell preview signal is ${appShell.shell.previewSignal}`);
-  assertGate(failures, appShell.shell.previewNextState === 'fractured', `app shell preview next state is ${appShell.shell.previewNextState}`);
-  assertGate(failures, Number(appShell.shell.hollowTick) >= 1, `app shell hollow tick text is ${appShell.shell.hollowTick}`);
-  assertGate(failures, Number(appShell.shell.visibleTraceCount) >= 1, `app shell visible trace text is ${appShell.shell.visibleTraceCount}`);
-  assertGate(failures, appShell.chronicleSurface.view === 'chronicle', `chronicle surface view is ${appShell.chronicleSurface.view}`);
-  assertGate(failures, appShell.maskSurface.view === 'mask', `mask surface view is ${appShell.maskSurface.view}`);
-  assertGate(failures, appShell.maskSurface.maskPathCount === 1, `mask surface path count is ${appShell.maskSurface.maskPathCount}`);
-  assertGate(failures, appShell.maskSurface.maskCatalystCount === 4, `mask surface catalyst count is ${appShell.maskSurface.maskCatalystCount}`);
-  assertGate(failures, appShell.maskSurface.maskChainCount === 1, `mask surface chain count is ${appShell.maskSurface.maskChainCount}`);
-  assertGate(failures, appShell.creatorSurface.view === 'creator', `creator surface view is ${appShell.creatorSurface.view}`);
-  assertGate(failures, appShell.creatorSurface.creatorStatCount === 6, `creator surface stat count is ${appShell.creatorSurface.creatorStatCount}`);
-  assertGate(failures, appShell.creatorSurface.signalCount === 4, `creator surface signal count is ${appShell.creatorSurface.signalCount}`);
-  assertGate(failures, appShell.worldSurface.view === 'world', `world surface view is ${appShell.worldSurface.view}`);
-  assertGate(failures, appShell.worldSurface.metricCount === 3, `world surface metric count is ${appShell.worldSurface.metricCount}`);
-  assertGate(failures, appShell.worldSurface.consequenceCount === 1, `world surface consequence count is ${appShell.worldSurface.consequenceCount}`);
-  assertGate(failures, appShell.shell.selectedSurfaceTab === 'world', `selected surface tab is ${appShell.shell.selectedSurfaceTab}`);
-  assertGate(failures, Number(appShell.shell.thresholdLevel) >= 0.66, `app shell threshold level too low (${appShell.shell.thresholdLevel})`);
-  assertGate(failures, appShell.restored.appPresence === 'defiance', `app shell restored presence is ${appShell.restored.appPresence}`);
-  assertGate(failures, appShell.restored.appThresholdPhase === 'unbound', `app shell restored phase is ${appShell.restored.appThresholdPhase}`);
-  assertGate(failures, appShell.restored.appThresholdValue >= 0.66, `app shell restored threshold too low (${appShell.restored.appThresholdValue})`);
-  assertGate(failures, appShell.stored?.version === 'presence-threshold-v1', `app shell stored version is ${appShell.stored?.version}`);
-  assertGate(failures, appShell.stored?.presence === 'defiance', `app shell stored presence is ${appShell.stored?.presence}`);
 }
 
 function assertGate(failures, condition, message) {
@@ -851,12 +654,6 @@ async function readSceneState(page, sample) {
       deepGradeMode: document.body.dataset.deepGradeMode,
       deepGradeContrast: Number(document.body.dataset.deepGradeContrast),
       deepGradeSaturation: Number(document.body.dataset.deepGradeSaturation),
-      appPresence: document.body.dataset.appPresence,
-      appPresenceResonance: Number(document.body.dataset.appPresenceResonance),
-      appThresholdPhase: document.body.dataset.appThresholdPhase,
-      appThresholdValue: Number(document.body.dataset.appThresholdValue),
-      appPresenceTone: document.body.dataset.appPresenceTone,
-      appModelVersion: document.body.dataset.appModelVersion,
       subjectFoot: document.body.dataset.subjectFoot,
       anchorLocal: document.body.dataset.anchorLocal,
       anchorLayer: document.body.dataset.anchorLayer,
