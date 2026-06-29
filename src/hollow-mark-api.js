@@ -23,10 +23,6 @@ export async function fetchPublicWorld() {
   return requestHollowApi('/api/world/public');
 }
 
-export async function fetchCreatorOverview() {
-  return requestHollowApi('/api/creator/overview');
-}
-
 export function getHollowApiBaseUrl() {
   const configured = import.meta.env.VITE_HOLLOW_API_URL?.trim();
   if (configured) return configured.replace(/\/$/, '');

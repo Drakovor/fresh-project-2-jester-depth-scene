@@ -2,7 +2,7 @@
 
 This is the target architecture for turning the current local prototype into a real persistent app.
 
-The current Vite/Pixi scene is the **Threshold**. It should remain the first premium signal of the universe. The full-stack app grows behind it: identity, world state, actions, traces, chronicle, admin, and optional stream windows.
+The current Vite/Pixi scene is the **Threshold**. It should remain the first premium signal of the universe. The full-stack app grows behind it: identity, world state, actions, traces, marks, zones, chronicle, and backend governance. There is no Stream Window or Creator surface in the current product plan.
 
 ## Authorized Reference Integration
 
@@ -13,7 +13,7 @@ Keep from it:
 - one persistent universe with scoped data boundaries
 - map-like zones that can be revealed, pressured, fractured, or protected
 - Chronicle-style records of meaningful world changes
-- admin curation, safety controls, and cost controls
+- backend curation, safety controls, and cost controls
 - curated fallbacks so the world never appears empty
 
 Reject from it for Hollow Mark:
@@ -34,12 +34,12 @@ Keep:
 - evolving Masks
 - zones that remember actions
 - visible marks, scars, traces, and world pulse
-- admin tools for curation, safety, and cost control
-- optional Kick connection later
+- backend curation, safety, and cost control
 
 Avoid:
 
-- daily farming
+- routine daily farming
+- cheap click grind
 - disposable mini-games
 - streamer penalties or handicaps
 - generic challenge/event loops
@@ -118,16 +118,9 @@ Not a feed of generic achievements. The Chronicle records world-changing moments
 - rare opening
 - meaningful admin-authored intervention
 
-### Stream Window
+### External Visibility
 
-Optional. A stream can display:
-
-- world pulse
-- active zone pressure
-- latest meaningful trace
-- current Mask transformations
-
-It must not become a penalty/challenge machine.
+No dedicated stream window is planned in the current scope. If the project later needs public display hooks, they must expose curated world state only and must never become the main loop.
 
 ## Data Model
 
@@ -252,14 +245,14 @@ Performance cache, not primary truth.
 - `GET /api/world/me/traces`
 - `GET /api/world/me/marks`
 
-### Admin
+### Governance
 
-- `GET /api/admin/world`
-- `PATCH /api/admin/zones/:id`
-- `POST /api/admin/chronicle`
-- `POST /api/admin/world/intervention`
-- `GET /api/admin/audit-log`
-- `GET /api/admin/cost-safety`
+- `GET /api/governance/world`
+- `PATCH /api/governance/zones/:id`
+- `POST /api/governance/chronicle`
+- `POST /api/governance/world/intervention`
+- `GET /api/governance/audit-log`
+- `GET /api/governance/cost-safety`
 
 ### Realtime
 
@@ -272,7 +265,6 @@ Events:
 - `trace:visible`
 - `mask:shape-changed`
 - `chronicle:new`
-- `stream:window-update`
 
 ## First Backend Milestone
 
@@ -286,11 +278,11 @@ Events:
 
 ## First Frontend Milestone
 
-1. Keep the Hollow Mark panel collapsed by default.
-2. Add a real Mask entry flow after the threshold.
+1. Keep the scene as the visual entry, not as the whole app.
+2. Add separate app surfaces for Scene, Mask, Zones, Marks, and Story.
 3. Add a zone view that feels like entering the current scene, not a flat dashboard.
 4. Add trace/mark detail without card-game cliche.
-5. Add a Chronicle view that reads like world memory, not a social feed.
+5. Add a Story/Chronicle view that reads like world memory, not a social feed.
 
 ## Security And Trust
 
@@ -298,8 +290,8 @@ Events:
 - Do not allow hidden AI calls from player activity.
 - Keep action logs append-only.
 - Rate-limit moves per Mask/session.
-- Admin interventions must be logged.
-- Public stream windows should expose only curated world state.
+- Governance interventions must be logged.
+- Public read APIs should expose only curated world state.
 
 ## Migration From Current Prototype
 

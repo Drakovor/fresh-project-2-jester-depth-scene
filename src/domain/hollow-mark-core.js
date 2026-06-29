@@ -38,14 +38,14 @@ export const MASK_DRIVES = Object.freeze([
 export const ZONES = Object.freeze([
   {
     id: 'threshold-floor',
-    label: 'Threshold Floor',
+    label: 'Floor Circle',
     depth: 0.32,
     pressure: 0.24,
     clarity: 0.62,
   },
   {
     id: 'black-glass-service',
-    label: 'Black Glass Service',
+    label: 'Left Glass',
     depth: 0.52,
     pressure: 0.44,
     clarity: 0.5,
@@ -59,14 +59,14 @@ export const ZONES = Object.freeze([
   },
   {
     id: 'ember-underpass',
-    label: 'Ember Underpass',
+    label: 'Amber Depth',
     depth: 0.74,
     pressure: 0.58,
     clarity: 0.36,
   },
   {
     id: 'pistachio-static',
-    label: 'Pistachio Static',
+    label: 'Green Signal',
     depth: 0.84,
     pressure: 0.7,
     clarity: 0.3,
