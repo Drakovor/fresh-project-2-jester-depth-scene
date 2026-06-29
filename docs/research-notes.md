@@ -29,3 +29,11 @@ This file keeps the external research anchors used for Hollow Mark decisions. It
 - The layer is inactive by default and becomes visible only after world actions.
 - The layer draws pressure veins, witness nodes, and floor memory into the scene instead of showing a HUD effect.
 - Visual gates now verify the new layer's mode, axis lock, energy, and alpha range.
+
+## Applied Mask Resonance Pass
+
+- Used the authorized Drako Lair reference only for structural lessons: persistent universe state, zones, chronicle, admin safety, and cost-control boundaries.
+- Kept Hollow Mark separate from Drako Lair's older royal/theater/card/overlay patterns.
+- Exposed Mask shape from the app shell to the Pixi renderer so player identity can affect scene material.
+- Added a pose-locked, scene-bound Mask resonance layer behind the character. It responds to drive, silhouette, surface, visibility, fracture, trace count, and world tick without moving the character or making the room pale.
+- Visual gates now verify Mask resonance mode, drive, silhouette, visibility, and alpha range.

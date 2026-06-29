@@ -118,7 +118,7 @@ The Mask must also have a visible evolving shape. It starts from the chosen driv
 
 Early shape variables:
 
-- **silhouette:** veiled, lifted, offset, forward-leaning, split-crowned
+- **silhouette:** veiled, lifted, offset, forward-leaning, split-crest
 - **surface:** soft-glass, ember-cut, pistachio-lacquer, interference, scarred black-glass
 - **facets:** softness, defiance, pride, static
 - **fracture:** accumulated cost of risky choices

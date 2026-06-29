@@ -91,9 +91,11 @@ function emitPresence() {
 
 function emitHollowMark() {
   const summary = getPlayableSummary(hollowState.world);
+  const maskShape = describeMaskShape(hollowState.mask);
   window.__hollowMark = {
     version: HOLLOW_MARK_MODEL_VERSION,
     mask: { ...hollowState.mask },
+    maskShape,
     selectedZone: hollowState.selectedZone,
     selectedMove: hollowState.selectedMove,
     summary,
@@ -383,14 +385,23 @@ function wireHollowMarkPanel(mount) {
 function setMaskDrive(driveId) {
   const selectedDrive = MASK_DRIVES.find((drive) => drive.id === driveId);
   if (!selectedDrive) return;
+  const nextMask = createMask({
+    id: hollowState.mask.id,
+    name: hollowState.mask.name,
+    drive: selectedDrive.id,
+  });
+  const currentShape = hollowState.mask.shape;
+  const preserveShape = Boolean(
+    currentShape
+      && ((Number(currentShape.visibility) || 0) > 0
+        || (Number(currentShape.fracture) || 0) > 0
+        || hollowState.mask.marks.length > 0
+        || hollowState.mask.scars.length > 0),
+  );
 
   hollowState.mask = {
-    ...createMask({
-      id: hollowState.mask.id,
-      name: hollowState.mask.name,
-      drive: selectedDrive.id,
-    }),
-    shape: hollowState.mask.shape,
+    ...nextMask,
+    shape: preserveShape ? currentShape : nextMask.shape,
     marks: [...hollowState.mask.marks],
     scars: [...hollowState.mask.scars],
   };

@@ -4,6 +4,28 @@ This is the target architecture for turning the current local prototype into a r
 
 The current Vite/Pixi scene is the **Threshold**. It should remain the first premium signal of the universe. The full-stack app grows behind it: identity, world state, actions, traces, chronicle, admin, and optional stream windows.
 
+## Authorized Reference Integration
+
+The read-only Drako Lair reference is useful as backend/product memory, not as a visual or thematic source to copy.
+
+Keep from it:
+
+- one persistent universe with scoped data boundaries
+- map-like zones that can be revealed, pressured, fractured, or protected
+- Chronicle-style records of meaningful world changes
+- admin curation, safety controls, and cost controls
+- curated fallbacks so the world never appears empty
+
+Reject from it for Hollow Mark:
+
+- royal, theater, sacred, medieval, or old lair language
+- generic card collection as the main loop
+- channel-point reward machinery as the main reason to play
+- overlays as the product center
+- automatic AI generation from player activity
+
+The current scene stays the art direction. Drako Lair contributes structural lessons; Hollow Mark remains its own world.
+
 ## Product Boundaries
 
 Keep:
@@ -48,6 +70,8 @@ The player identity. A Mask is not a faction. It has:
 - private/public trace history
 
 The Mask's shape evolves from choices and accidents.
+
+In the current prototype, the Mask shape already drives a small scene-bound resonance layer. This is a preview of the long-term rule: identity changes should alter the world material, silhouette, reflection, or trace language before they become ordinary UI labels.
 
 ### World Map
 

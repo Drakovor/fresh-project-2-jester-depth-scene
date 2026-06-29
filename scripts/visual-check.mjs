@@ -242,11 +242,19 @@ async function checkAppShell(browser, consoleMessages) {
     await page.click('[data-presence="defiance"]');
     await page.waitForTimeout(420);
     const selected = await readSceneState(page, 'app-shell-defiance');
+    await page.click('.hollow-toggle');
+    await page.click('.commit-move');
+    await page.waitForTimeout(700);
+    const afterMove = await readSceneState(page, 'app-shell-after-move');
     const shell = await page.evaluate(() => {
       const dock = document.querySelector('.presence-dock');
+      const panel = document.querySelector('.hollow-panel');
       return {
         dockOpen: dock?.dataset.open,
         dockPhase: dock?.dataset.phase,
+        hollowOpen: panel?.dataset.open,
+        hollowTick: document.querySelector('.hollow-toggle b')?.textContent,
+        visibleTraceCount: document.querySelector('.trace-head b')?.textContent,
         selectedPressed: document.querySelector('[data-presence="defiance"]')?.getAttribute('aria-pressed'),
         thresholdLevel: getComputedStyle(dock).getPropertyValue('--threshold-level').trim(),
         readout: document.querySelector('.readout-key')?.textContent,
@@ -265,6 +273,7 @@ async function checkAppShell(browser, consoleMessages) {
       viewport,
       initial,
       selected,
+      afterMove,
       restored,
       shell,
       stored,
@@ -441,6 +450,11 @@ function evaluateQualityGates(report) {
       assertGate(failures, sample.hollowWorldTraceAxis === sample.cameraAxis, `${name}/${sample.sample}: hollow world trace axis ${sample.hollowWorldTraceAxis} does not match camera ${sample.cameraAxis}`);
       assertGate(failures, sample.hollowWorldTraceEnergy >= 0 && sample.hollowWorldTraceEnergy <= 1, `${name}/${sample.sample}: hollow world trace energy out of range (${sample.hollowWorldTraceEnergy})`);
       assertGate(failures, sample.hollowWorldTraceAlpha >= 0 && sample.hollowWorldTraceAlpha <= 0.22, `${name}/${sample.sample}: hollow world trace alpha out of range (${sample.hollowWorldTraceAlpha})`);
+      assertGate(failures, sample.maskResonanceMode === 'pose-locked-hollow-mask-resonance', `${name}/${sample.sample}: mask resonance mode is ${sample.maskResonanceMode}`);
+      assertGate(failures, ['softness', 'defiance', 'pride', 'static', 'unformed'].includes(sample.maskResonanceDrive), `${name}/${sample.sample}: mask resonance drive is ${sample.maskResonanceDrive}`);
+      assertGate(failures, ['veiled', 'lifted', 'offset', 'forward-leaning', 'split-crest', 'split', 'unformed'].includes(sample.maskResonanceSilhouette), `${name}/${sample.sample}: mask resonance silhouette is ${sample.maskResonanceSilhouette}`);
+      assertGate(failures, sample.maskResonanceAlpha >= 0 && sample.maskResonanceAlpha <= 0.165, `${name}/${sample.sample}: mask resonance alpha out of range (${sample.maskResonanceAlpha})`);
+      assertGate(failures, sample.maskResonanceVisibility >= 0 && sample.maskResonanceVisibility <= 1, `${name}/${sample.sample}: mask resonance visibility out of range (${sample.maskResonanceVisibility})`);
       assertGate(failures, sample.subjectMatteMode === 'cinematic-negative-fill-subject-clarity', `${name}/${sample.sample}: subject matte mode is ${sample.subjectMatteMode}`);
       assertGate(failures, sample.subjectMatteAlpha >= 0.09 && sample.subjectMatteAlpha <= 0.17, `${name}/${sample.sample}: subject matte alpha out of range (${sample.subjectMatteAlpha})`);
       assertGate(failures, sample.floorReflectionMode === 'scene-anchored-contact-reflection', `${name}/${sample.sample}: floor reflection mode is ${sample.floorReflectionMode}`);
@@ -527,7 +541,15 @@ function evaluateAppShellGates(failures, appShell) {
   assertGate(failures, appShell.selected.appThresholdPhase === 'unbound', `app shell selected phase is ${appShell.selected.appThresholdPhase}`);
   assertGate(failures, appShell.selected.appThresholdValue >= 0.66, `app shell selected threshold too low (${appShell.selected.appThresholdValue})`);
   assertGate(failures, appShell.selected.appPresenceTone === 'ember', `app shell selected tone is ${appShell.selected.appPresenceTone}`);
+  assertGate(failures, appShell.afterMove.hollowMarkTick >= 1, `app shell hollow mark tick did not advance (${appShell.afterMove.hollowMarkTick})`);
+  assertGate(failures, appShell.afterMove.hollowMarkVisibleTraces >= 1, `app shell visible traces did not advance (${appShell.afterMove.hollowMarkVisibleTraces})`);
+  assertGate(failures, appShell.afterMove.maskResonanceDrive === 'defiance', `app shell mask resonance drive after move is ${appShell.afterMove.maskResonanceDrive}`);
+  assertGate(failures, appShell.afterMove.maskResonanceVisibility > appShell.selected.maskResonanceVisibility, `mask resonance visibility did not react after move (${appShell.selected.maskResonanceVisibility} -> ${appShell.afterMove.maskResonanceVisibility})`);
+  assertGate(failures, appShell.afterMove.maskResonanceAlpha >= appShell.selected.maskResonanceAlpha, `mask resonance alpha weakened after move (${appShell.selected.maskResonanceAlpha} -> ${appShell.afterMove.maskResonanceAlpha})`);
   assertGate(failures, appShell.shell.dockPhase === 'unbound', `app shell dock phase is ${appShell.shell.dockPhase}`);
+  assertGate(failures, appShell.shell.hollowOpen === 'true', `app shell hollow panel open is ${appShell.shell.hollowOpen}`);
+  assertGate(failures, Number(appShell.shell.hollowTick) >= 1, `app shell hollow tick text is ${appShell.shell.hollowTick}`);
+  assertGate(failures, Number(appShell.shell.visibleTraceCount) >= 1, `app shell visible trace text is ${appShell.shell.visibleTraceCount}`);
   assertGate(failures, Number(appShell.shell.thresholdLevel) >= 0.66, `app shell threshold level too low (${appShell.shell.thresholdLevel})`);
   assertGate(failures, appShell.restored.appPresence === 'defiance', `app shell restored presence is ${appShell.restored.appPresence}`);
   assertGate(failures, appShell.restored.appThresholdPhase === 'unbound', `app shell restored phase is ${appShell.restored.appThresholdPhase}`);
@@ -683,6 +705,13 @@ async function readSceneState(page, sample) {
       hollowWorldTraceAxis: document.body.dataset.hollowWorldTraceAxis,
       hollowWorldTraceEnergy: Number(document.body.dataset.hollowWorldTraceEnergy),
       hollowWorldTraceAlpha: Number(document.body.dataset.hollowWorldTraceAlpha),
+      hollowMarkTick: Number(document.body.dataset.hollowMarkTick),
+      hollowMarkVisibleTraces: Number(document.body.dataset.hollowMarkVisibleTraces),
+      maskResonanceMode: document.body.dataset.maskResonanceMode,
+      maskResonanceDrive: document.body.dataset.maskResonanceDrive,
+      maskResonanceSilhouette: document.body.dataset.maskResonanceSilhouette,
+      maskResonanceAlpha: Number(document.body.dataset.maskResonanceAlpha),
+      maskResonanceVisibility: Number(document.body.dataset.maskResonanceVisibility),
       subjectMatteMode: document.body.dataset.subjectMatteMode,
       subjectMatteAlpha: Number(document.body.dataset.subjectMatteAlpha),
       floorReflectionMode: document.body.dataset.floorReflectionMode,

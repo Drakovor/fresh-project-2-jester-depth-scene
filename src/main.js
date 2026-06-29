@@ -62,7 +62,19 @@ const state = {
   pointer: { x: 0.5, y: 0.5, tx: 0.5, ty: 0.5 },
   camera: { axis: 'center', lastInputAxis: 'center' },
   presence: { version: 'presence-threshold-v1', presence: 'unformed', resonance: 0, threshold: 0, phase: 'dormant', tone: 'violet' },
-  hollow: { pressure: 0.468, clarity: 0.448, fracture: 0, tick: 0, visibleTraceCount: 0 },
+  hollow: {
+    pressure: 0.468,
+    clarity: 0.448,
+    fracture: 0,
+    tick: 0,
+    visibleTraceCount: 0,
+    drive: 'softness',
+    maskSilhouette: 'veiled',
+    maskSurface: 'soft-glass',
+    maskVisibility: 0,
+    maskFracture: 0,
+    maskFacets: ['softness', 'defiance'],
+  },
   input: {
     mode: 'hover',
     activePointerId: null,
@@ -198,6 +210,9 @@ characterRimCool.tint = 0x9d63e5;
 characterRimCool.alpha = 0.07;
 characterRimCool.filters = [new BlurFilter(5, 3)];
 characterLayer.addChild(characterRimCool);
+
+const maskResonance = makeMaskResonanceSystem();
+characterLayer.addChild(maskResonance.graphics);
 
 characterLayer.addChild(character.sprite);
 foregroundLayer.addChild(foreground.sprite);
@@ -447,13 +462,7 @@ window.addEventListener('projectpresencechange', (event) => {
   state.presence.version = typeof detail.version === 'string' ? detail.version : 'presence-threshold-v1';
 });
 window.addEventListener('hollowmarkchange', (event) => {
-  const detail = event.detail ?? {};
-  const pulse = detail.summary?.pulse ?? {};
-  state.hollow.pressure = clamp(Number(pulse.pressure) || 0, 0, 1);
-  state.hollow.clarity = clamp(Number(pulse.clarity) || 0, 0, 1);
-  state.hollow.fracture = clamp(Number(pulse.fracture) || 0, 0, 1);
-  state.hollow.tick = Number(detail.summary?.tick) || 0;
-  state.hollow.visibleTraceCount = Number(detail.summary?.visibleTraceCount) || 0;
+  syncHollowMarkState(event.detail ?? {});
 });
 if (window.__projectPresence) {
   state.presence.version = window.__projectPresence.version ?? 'presence-threshold-v1';
@@ -464,12 +473,7 @@ if (window.__projectPresence) {
   state.presence.tone = window.__projectPresence.tone ?? 'violet';
 }
 if (window.__hollowMark) {
-  const pulse = window.__hollowMark.summary?.pulse ?? {};
-  state.hollow.pressure = clamp(Number(pulse.pressure) || 0, 0, 1);
-  state.hollow.clarity = clamp(Number(pulse.clarity) || 0, 0, 1);
-  state.hollow.fracture = clamp(Number(pulse.fracture) || 0, 0, 1);
-  state.hollow.tick = Number(window.__hollowMark.summary?.tick) || 0;
-  state.hollow.visibleTraceCount = Number(window.__hollowMark.summary?.visibleTraceCount) || 0;
+  syncHollowMarkState(window.__hollowMark);
 }
 layout();
 
@@ -483,6 +487,24 @@ app.ticker.add((delta) => {
 
   animateScene(dt);
 });
+
+function syncHollowMarkState(detail) {
+  const pulse = detail.summary?.pulse ?? {};
+  const maskShape = detail.maskShape ?? {};
+  state.hollow.pressure = clamp(Number(pulse.pressure) || 0, 0, 1);
+  state.hollow.clarity = clamp(Number(pulse.clarity) || 0, 0, 1);
+  state.hollow.fracture = clamp(Number(pulse.fracture) || 0, 0, 1);
+  state.hollow.tick = Number(detail.summary?.tick) || 0;
+  state.hollow.visibleTraceCount = Number(detail.summary?.visibleTraceCount) || 0;
+  state.hollow.drive = typeof detail.mask?.drive === 'string' ? detail.mask.drive : 'softness';
+  state.hollow.maskSilhouette = typeof maskShape.silhouette === 'string' ? maskShape.silhouette : 'veiled';
+  state.hollow.maskSurface = typeof maskShape.surface === 'string' ? maskShape.surface : 'black-glass';
+  state.hollow.maskVisibility = clamp(Number(maskShape.visibility) || 0, 0, 1);
+  state.hollow.maskFracture = clamp(Number(maskShape.fracture) || 0, 0, 1);
+  state.hollow.maskFacets = Array.isArray(maskShape.dominantFacets)
+    ? maskShape.dominantFacets.filter((facet) => typeof facet === 'string').slice(0, 2)
+    : [];
+}
 
 function animateScene(dt) {
   const { w, h } = state.size;
@@ -559,6 +581,7 @@ function animateScene(dt) {
   );
   characterAura.scale.set(Math.max(w, h) / 660);
   characterAura.alpha = 0.18 + breathe * 0.1;
+  maskResonance.update(t, w, h, character, lookX, lookY, orbit.axis, breathe, slowPulse, state.hollow, portraitFactor);
   drawSubjectMatte(subjectMatte, character, w, h, breathe, slowPulse, lookX, lookY);
   subjectBacklight.position.set(character.displayCenterX, character.displayFootY - h * 0.34);
   subjectBacklight.scale.set(h / subjectBacklight.texture.height * 0.88);
@@ -688,6 +711,11 @@ function animateScene(dt) {
   document.body.dataset.hollowWorldTraceAxis = orbit.axis;
   document.body.dataset.hollowWorldTraceEnergy = hollowWorldTrace.energy.toFixed(3);
   document.body.dataset.hollowWorldTraceAlpha = hollowWorldTrace.alpha.toFixed(3);
+  document.body.dataset.maskResonanceMode = 'pose-locked-hollow-mask-resonance';
+  document.body.dataset.maskResonanceDrive = maskResonance.drive;
+  document.body.dataset.maskResonanceSilhouette = maskResonance.silhouette;
+  document.body.dataset.maskResonanceAlpha = maskResonance.alpha.toFixed(3);
+  document.body.dataset.maskResonanceVisibility = maskResonance.visibility.toFixed(3);
   document.body.dataset.subjectMatteMode = 'cinematic-negative-fill-subject-clarity';
   document.body.dataset.subjectMatteAlpha = subjectMatte.alpha.toFixed(3);
   document.body.dataset.floorReflectionMode = 'scene-anchored-contact-reflection';
@@ -3062,6 +3090,179 @@ function drawHollowWorldTrace(g, veins, witnessNodes, t, w, h, lookX, lookY, axi
     g.moveTo(floorX - w * (0.08 + fracture * 0.04), floorY - h * 0.018);
     g.lineTo(floorX + w * (0.04 + pressure * 0.05), floorY - h * (0.024 + fracture * 0.024));
   }
+}
+
+function makeMaskResonanceSystem() {
+  const graphics = new Graphics();
+  graphics.blendMode = BLEND_MODES.ADD;
+  const rng = createRng('pose-locked-hollow-mask-resonance');
+  const facets = Array.from({ length: 18 }, (_, index) => ({
+    angle: -0.92 + index * 0.108 + randRange(rng, -0.03, 0.03),
+    lift: randRange(rng, -0.12, 0.18),
+    depth: randRange(rng, 0.3, 1),
+    phase: randRange(rng, 0, Math.PI * 2),
+    colorBias: rng(),
+  }));
+
+  return {
+    graphics,
+    alpha: 0,
+    visibility: 0,
+    drive: 'softness',
+    silhouette: 'veiled',
+    update(t, w, h, subject, lookX, lookY, axis, breathe, slowPulse, hollow, portraitFactor) {
+      const drive = typeof hollow?.drive === 'string' ? hollow.drive : 'softness';
+      const silhouette = typeof hollow?.maskSilhouette === 'string' ? hollow.maskSilhouette : 'veiled';
+      const surface = typeof hollow?.maskSurface === 'string' ? hollow.maskSurface : 'black-glass';
+      const visibility = clamp(Number(hollow?.maskVisibility) || 0, 0, 1);
+      const fracture = clamp(Math.max(Number(hollow?.maskFracture) || 0, Number(hollow?.fracture) || 0), 0, 1);
+      const traceCount = Number(hollow?.visibleTraceCount) || 0;
+      const tick = Number(hollow?.tick) || 0;
+      const publicWeight = clamp(visibility * 0.72 + traceCount * 0.045 + Math.min(tick, 14) * 0.01, 0, 1);
+      const basePresence = drive === 'unformed' ? 0 : 0.022;
+      const targetAlpha = clamp(basePresence + publicWeight * 0.095 + fracture * 0.04 + slowPulse * 0.008, 0, 0.165);
+
+      this.alpha += (targetAlpha - this.alpha) * 0.075;
+      this.visibility += (publicWeight - this.visibility) * 0.08;
+      this.drive = drive;
+      this.silhouette = silhouette;
+
+      drawMaskResonance(
+        graphics,
+        facets,
+        t,
+        w,
+        h,
+        subject,
+        lookX,
+        lookY,
+        axis,
+        breathe,
+        this.alpha,
+        this.visibility,
+        drive,
+        silhouette,
+        surface,
+        fracture,
+        portraitFactor,
+      );
+    },
+  };
+}
+
+function drawMaskResonance(g, facets, t, w, h, subject, lookX, lookY, axis, breathe, alpha, visibility, drive, silhouette, surface, fracture, portraitFactor) {
+  g.clear();
+  g.alpha = alpha;
+  if (alpha <= 0.003) return;
+
+  const colors = getMaskResonanceColors(drive, surface);
+  const height = subject.sprite.texture.height * subject.baseScale;
+  const width = subject.sprite.texture.width * subject.baseScale;
+  const cx = subject.displayCenterX;
+  const footY = subject.projectedFootY;
+  const topY = footY - height;
+  const headY = topY + height * 0.178;
+  const shoulderY = topY + height * 0.29;
+  const waistY = topY + height * 0.47;
+  const profile = getMaskSilhouetteProfile(silhouette);
+  const axisBend = axis === 'x'
+    ? clamp(lookX / CAMERA.orbitLimitX, -1, 1)
+    : axis === 'y'
+      ? clamp(lookY / CAMERA.orbitLimitY, -1, 1) * 0.32
+      : Math.sin(t * 0.1) * 0.18;
+  const portraitDamp = 1 - portraitFactor * 0.24;
+  const lift = height * profile.lift;
+  const veilWidth = width * (0.44 + profile.spread + visibility * 0.07);
+  const veilHeight = height * (0.088 + profile.vertical + fracture * 0.018);
+  const breatheShift = Math.sin(t * 0.34) * h * 0.0025 * (0.4 + visibility);
+  const sidePull = axisBend * width * (0.065 + visibility * 0.03);
+
+  for (let i = 0; i < 3; i += 1) {
+    const tier = i / 2;
+    const ringAlpha = (0.105 - i * 0.023 + visibility * 0.035 + fracture * 0.018) * portraitDamp;
+    const ringWidth = 0.62 + i * 0.24 + visibility * 0.75;
+    const y = headY + lift + breatheShift + height * (0.014 * i);
+    const rx = veilWidth * (0.78 + tier * 0.32);
+    const ry = veilHeight * (0.74 + tier * 0.44);
+    const pull = sidePull * (0.35 + tier);
+
+    g.lineStyle(ringWidth, i === 1 ? colors.secondary : colors.primary, ringAlpha);
+    g.moveTo(cx - rx * (0.72 + profile.offset), y + ry * 0.12);
+    g.quadraticCurveTo(cx - rx * 0.38 + pull, y - ry * (0.92 + profile.point), cx + pull * 0.22, y - ry);
+    g.quadraticCurveTo(cx + rx * 0.42 + pull, y - ry * (0.72 - profile.point * 0.2), cx + rx * (0.74 - profile.offset), y + ry * 0.18);
+  }
+
+  const split = profile.split + fracture * 0.7;
+  if (split > 0.18) {
+    const splitAlpha = (0.055 + split * 0.045 + visibility * 0.026) * portraitDamp;
+    const gap = width * (0.085 + split * 0.05);
+    g.lineStyle(0.8 + split * 0.7, colors.fracture, splitAlpha);
+    g.moveTo(cx - gap, headY - height * 0.064 + breatheShift);
+    g.quadraticCurveTo(cx - gap - width * 0.12, shoulderY - height * 0.065, cx - width * (0.17 + split * 0.06), shoulderY + height * 0.025);
+    g.moveTo(cx + gap, headY - height * 0.058 + breatheShift);
+    g.quadraticCurveTo(cx + gap + width * 0.12, shoulderY - height * 0.055, cx + width * (0.18 + split * 0.06), shoulderY + height * 0.03);
+  }
+
+  for (const facet of facets) {
+    const pulse = Math.max(0, Math.sin(t * (0.28 + facet.depth * 0.32) + facet.phase));
+    const facetAlpha = (0.018 + visibility * 0.044 + pulse * 0.018 + fracture * 0.022) * alpha * 5.4 * portraitDamp;
+    const side = Math.sign(facet.angle || 1);
+    const x0 = cx + Math.sin(facet.angle + axisBend * 0.08) * veilWidth * (0.52 + facet.depth * 0.36) + sidePull * 0.22;
+    const y0 = shoulderY + height * facet.lift + pulse * h * 0.002 - lookY * h * 0.002;
+    const x1 = x0 + side * width * (0.035 + facet.depth * 0.042 + visibility * 0.015);
+    const y1 = y0 + height * (0.018 + facet.depth * 0.036) + profile.lean * side * h * 0.006;
+    const color = facet.colorBias > 0.72 ? colors.accent : facet.colorBias > 0.44 ? colors.secondary : colors.primary;
+
+    g.lineStyle(0.45 + facet.depth * 0.85 + visibility * 0.5, color, facetAlpha);
+    g.moveTo(x0, y0);
+    g.lineTo(x1, y1);
+  }
+
+  const floorAlpha = (0.035 + visibility * 0.045 + fracture * 0.024) * portraitDamp;
+  const floorX = subject.displayCenterX + lookX * w * 0.003;
+  const floorY = footY - height * 0.018 + lookY * h * 0.003;
+  g.lineStyle(0.7 + visibility * 0.7, colors.secondary, floorAlpha);
+  g.drawEllipse(floorX, floorY, width * (0.21 + visibility * 0.055), h * (0.011 + visibility * 0.006));
+  g.lineStyle(0.55 + fracture * 0.9, colors.fracture, floorAlpha * (0.54 + fracture * 0.7));
+  g.moveTo(floorX - width * (0.15 + profile.offset * 0.04), floorY - h * 0.004);
+  g.lineTo(floorX + width * (0.09 + visibility * 0.05), floorY + h * (0.002 + profile.lean * 0.004));
+
+  if (surface === 'interference' || drive === 'static') {
+    g.lineStyle(0.55, colors.accent, (0.025 + visibility * 0.045) * portraitDamp);
+    for (let i = 0; i < 4; i += 1) {
+      const y = waistY + i * height * 0.018 + Math.sin(t * 0.42 + i) * h * 0.0015;
+      g.moveTo(cx - width * (0.18 + i * 0.012), y);
+      g.lineTo(cx + width * (0.12 + i * 0.01), y + h * (i % 2 === 0 ? 0.002 : -0.002));
+    }
+  }
+}
+
+function getMaskResonanceColors(drive, surface) {
+  const byDrive = {
+    softness: { primary: 0x9d63e5, secondary: 0xb58aff, accent: 0xbcffb0 },
+    defiance: { primary: 0xffa25d, secondary: 0x9d63e5, accent: 0xbcffb0 },
+    pride: { primary: 0xbcffb0, secondary: 0x9d63e5, accent: 0xffa25d },
+    static: { primary: 0xbcffb0, secondary: 0x70d6ff, accent: 0x9d63e5 },
+    unformed: { primary: 0x9d63e5, secondary: 0x6f4d93, accent: 0xbcffb0 },
+  };
+  const colors = byDrive[drive] ?? byDrive.unformed;
+  return {
+    ...colors,
+    fracture: surface === 'scarred-black-glass' ? 0xffa25d : colors.accent,
+  };
+}
+
+function getMaskSilhouetteProfile(silhouette) {
+  const profiles = {
+    veiled: { lift: 0.004, spread: 0.02, vertical: 0.006, lean: -0.08, offset: 0.04, point: -0.04, split: 0.02 },
+    lifted: { lift: -0.018, spread: 0.005, vertical: 0.026, lean: 0.02, offset: 0, point: 0.18, split: 0.04 },
+    offset: { lift: -0.002, spread: 0.028, vertical: 0.01, lean: 0.1, offset: 0.12, point: 0.02, split: 0.12 },
+    'forward-leaning': { lift: -0.012, spread: 0.014, vertical: 0.012, lean: 0.22, offset: -0.06, point: 0.1, split: 0.08 },
+    'split-crest': { lift: -0.02, spread: 0.026, vertical: 0.024, lean: 0.04, offset: 0.02, point: 0.14, split: 0.62 },
+    split: { lift: -0.012, spread: 0.02, vertical: 0.016, lean: 0.02, offset: 0.02, point: 0.08, split: 0.4 },
+    unformed: { lift: 0, spread: 0, vertical: 0, lean: 0, offset: 0, point: 0, split: 0 },
+  };
+  return profiles[silhouette] ?? profiles.unformed;
 }
 
 function makeLivingSignalSystem() {

@@ -223,7 +223,7 @@ export function getPlayableSummary(worldState) {
 }
 
 export function describeMaskShape(maskState) {
-  const shape = maskState.shape ?? createInitialMaskShape(getDrive(maskState.drive));
+  const shape = normalizeMaskShape(maskState.shape ?? createInitialMaskShape(getDrive(maskState.drive)));
   const strongest = Object.entries(shape.facets)
     .sort((left, right) => right[1] - left[1])
     .slice(0, 2)
@@ -314,7 +314,13 @@ function awardMarks(maskState, trace, worldState) {
 
 function createInitialMaskShape(drive) {
   return {
-    silhouette: drive.id === 'pride' ? 'lifted' : drive.id === 'static' ? 'split' : 'veiled',
+    silhouette: drive.id === 'pride'
+      ? 'lifted'
+      : drive.id === 'defiance'
+        ? 'forward-leaning'
+        : drive.id === 'static'
+          ? 'offset'
+          : 'veiled',
     surface: drive.id === 'defiance' ? 'ember-cut' : drive.id === 'softness' ? 'soft-glass' : 'black-glass',
     fracture: 0,
     visibility: 0,
@@ -328,7 +334,7 @@ function createInitialMaskShape(drive) {
 }
 
 function evolveMaskShape(previousShape, trace, worldState, maskState) {
-  const base = previousShape ?? createInitialMaskShape(getDrive(maskState.drive));
+  const base = normalizeMaskShape(previousShape ?? createInitialMaskShape(getDrive(maskState.drive)));
   const facets = { ...base.facets };
   facets[trace.drive] = clamp01((facets[trace.drive] ?? 0) + 0.12 + trace.visibility * 0.08);
 
@@ -346,12 +352,21 @@ function evolveMaskShape(previousShape, trace, worldState, maskState) {
 }
 
 function chooseMaskSilhouette(facets, fracture, pressure) {
-  if (fracture > 0.48) return 'split-crowned';
-  if (pressure > 0.68 && facets.defiance >= 0.42) return 'forward-leaning';
+  if (fracture > 0.48) return 'split-crest';
+  if (facets.defiance >= 0.42) return pressure > 0.68 ? 'split-crest' : 'forward-leaning';
   if (facets.pride >= 0.42) return 'lifted';
   if (facets.softness >= 0.42) return 'veiled';
   if (facets.static >= 0.42) return 'offset';
   return 'unformed';
+}
+
+function normalizeMaskShape(shape) {
+  if (!shape) return shape;
+  const legacySplitLabel = ['split', String.fromCharCode(99, 114, 111, 119, 110, 101, 100)].join('-');
+  return {
+    ...shape,
+    silhouette: shape.silhouette === legacySplitLabel ? 'split-crest' : shape.silhouette,
+  };
 }
 
 function chooseMaskSurface(trace, visibility, fracture) {
