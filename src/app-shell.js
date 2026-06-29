@@ -19,6 +19,11 @@ import {
   describeWorldZones,
   getPlayableSummary,
 } from './domain/hollow-mark-core.js';
+import {
+  commitRemoteMove,
+  loadRemoteHollowState,
+  setRemoteMaskDrive,
+} from './hollow-mark-api.js';
 
 const HOLLOW_MARK_STORAGE_KEY = 'hollow-mark.prototype.v1';
 
@@ -38,6 +43,9 @@ const hollowState = {
 };
 
 let hydrated = false;
+let remoteHydrated = false;
+let remoteAvailable = false;
+let remoteRequestActive = false;
 
 function hydrate() {
   if (hydrated) return;
@@ -337,6 +345,7 @@ function renderShell() {
   wireHollowMarkPanel(mount);
   emitPresence();
   emitHollowMark();
+  hydrateRemoteHollowMark();
 }
 
 function wirePresenceDock(mount) {
@@ -403,25 +412,7 @@ function wireHollowMarkPanel(mount) {
   }
 
   mount.querySelector('.commit-move')?.addEventListener('click', () => {
-    try {
-      const result = applyMove(
-        hollowState.world,
-        hollowState.mask,
-        hollowState.selectedMove,
-        hollowState.selectedZone,
-      );
-      hollowState.world = result.world;
-      hollowState.mask = result.mask;
-      hollowState.lastTrace = result.trace;
-      hollowState.error = '';
-    } catch (error) {
-      hollowState.error = error.message.includes('Not enough will')
-        ? 'Will exhausted.'
-        : 'Move refused.';
-    }
-
-    saveHollowMarkState();
-    renderShell();
+    commitSelectedMove();
   });
 }
 
@@ -452,6 +443,92 @@ function setMaskDrive(driveId) {
   setPresenceFromDrive(selectedDrive.id);
   saveHollowMarkState();
   renderShell();
+  syncRemoteMaskDrive(selectedDrive.id);
+}
+
+function commitSelectedMove() {
+  if (remoteAvailable) {
+    commitRemoteMove({
+      zoneId: hollowState.selectedZone,
+      moveId: hollowState.selectedMove,
+    })
+      .then((remoteState) => {
+        applyRemoteHollowState(remoteState);
+        saveHollowMarkState();
+        renderShell();
+      })
+      .catch(() => {
+        remoteAvailable = false;
+        commitLocalMove();
+      });
+    return;
+  }
+
+  commitLocalMove();
+}
+
+function commitLocalMove() {
+  try {
+    const result = applyMove(
+      hollowState.world,
+      hollowState.mask,
+      hollowState.selectedMove,
+      hollowState.selectedZone,
+    );
+    hollowState.world = result.world;
+    hollowState.mask = result.mask;
+    hollowState.lastTrace = result.trace;
+    hollowState.error = '';
+  } catch (error) {
+    hollowState.error = error.message.includes('Not enough will')
+      ? 'Will exhausted.'
+      : 'Move refused.';
+  }
+
+  saveHollowMarkState();
+  renderShell();
+}
+
+function hydrateRemoteHollowMark() {
+  if (remoteHydrated || remoteRequestActive || getDemoMode()) return;
+  remoteHydrated = true;
+  remoteRequestActive = true;
+
+  loadRemoteHollowState()
+    .then((remoteState) => {
+      remoteAvailable = true;
+      applyRemoteHollowState(remoteState);
+      saveHollowMarkState();
+      renderShell();
+    })
+    .catch(() => {
+      remoteAvailable = false;
+    })
+    .finally(() => {
+      remoteRequestActive = false;
+    });
+}
+
+function syncRemoteMaskDrive(driveId) {
+  if (!remoteAvailable) return;
+  setRemoteMaskDrive(driveId)
+    .then((remoteState) => {
+      applyRemoteHollowState(remoteState);
+      saveHollowMarkState();
+      renderShell();
+    })
+    .catch(() => {
+      remoteAvailable = false;
+    });
+}
+
+function applyRemoteHollowState(remoteState) {
+  hollowState.mask = remoteState.mask;
+  hollowState.world = remoteState.world;
+  hollowState.selectedZone = remoteState.selectedZone;
+  hollowState.selectedMove = remoteState.selectedMove;
+  hollowState.lastTrace = remoteState.lastTrace;
+  hollowState.error = '';
 }
 
 function getSelectedZone() {

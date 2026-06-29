@@ -13,15 +13,31 @@ Planning references:
 
 ## Local Work
 
+Frontend threshold:
+
 ```bash
 npm run dev
+```
+
+Full-stack API in a second terminal:
+
+```bash
+npm run api
+```
+
+API smoke test:
+
+```bash
+npm run api:check
 ```
 
 ```bash
 npm run visual:check
 ```
 
-The visual check renders desktop, mobile portrait, and tablet portrait screenshots into `tmp/`, records motion/anchor/camera/clarity metrics, and fails if a quality gate regresses.
+The local API stores Masks, world state, traces, Chronicle events, and snapshots in `server/data/hollow-mark-store.json` (ignored by git). The frontend uses the API on `127.0.0.1:8787` when available and falls back to local browser state on GitHub Pages until a hosted backend is added.
+
+The visual check renders desktop, mobile portrait, and tablet portrait screenshots into `tmp/`, records motion/anchor/camera/clarity metrics, verifies the app shell, and fails if a quality gate regresses.
 
 ## Generate Fresh Assets
 
