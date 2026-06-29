@@ -238,6 +238,9 @@ async function checkAppShell(browser, consoleMessages) {
     await page.waitForTimeout(500);
 
     const initial = await readSceneState(page, 'app-shell-initial');
+    await page.click('[data-view="mask"]');
+    await page.waitForTimeout(240);
+    const maskSurface = await readSurfaceState(page);
     await page.click('[data-view="chronicle"]');
     await page.waitForTimeout(240);
     const chronicleSurface = await readSurfaceState(page);
@@ -301,6 +304,7 @@ async function checkAppShell(browser, consoleMessages) {
     return {
       viewport,
       initial,
+      maskSurface,
       chronicleSurface,
       creatorSurface,
       worldSurface,
@@ -328,6 +332,9 @@ async function readSurfaceState(page) {
       consequenceCount: document.querySelectorAll('.consequence-strip').length,
       chronicleCount: document.querySelectorAll('.chronicle-event').length,
       creatorStatCount: document.querySelectorAll('.creator-grid div').length,
+      maskPathCount: document.querySelectorAll('.mask-path-card').length,
+      maskCatalystCount: document.querySelectorAll('.mask-catalyst-grid div').length,
+      maskChainCount: document.querySelectorAll('.mask-chain-list').length,
       relationRowCount: document.querySelectorAll('.relation-row').length,
       signalCount: document.querySelectorAll('.signal-grid span').length,
       zoneRows: document.querySelectorAll('.surface-zone').length,
@@ -633,6 +640,10 @@ function evaluateAppShellGates(failures, appShell) {
   assertGate(failures, Number(appShell.shell.hollowTick) >= 1, `app shell hollow tick text is ${appShell.shell.hollowTick}`);
   assertGate(failures, Number(appShell.shell.visibleTraceCount) >= 1, `app shell visible trace text is ${appShell.shell.visibleTraceCount}`);
   assertGate(failures, appShell.chronicleSurface.view === 'chronicle', `chronicle surface view is ${appShell.chronicleSurface.view}`);
+  assertGate(failures, appShell.maskSurface.view === 'mask', `mask surface view is ${appShell.maskSurface.view}`);
+  assertGate(failures, appShell.maskSurface.maskPathCount === 1, `mask surface path count is ${appShell.maskSurface.maskPathCount}`);
+  assertGate(failures, appShell.maskSurface.maskCatalystCount === 4, `mask surface catalyst count is ${appShell.maskSurface.maskCatalystCount}`);
+  assertGate(failures, appShell.maskSurface.maskChainCount === 1, `mask surface chain count is ${appShell.maskSurface.maskChainCount}`);
   assertGate(failures, appShell.creatorSurface.view === 'creator', `creator surface view is ${appShell.creatorSurface.view}`);
   assertGate(failures, appShell.creatorSurface.creatorStatCount === 6, `creator surface stat count is ${appShell.creatorSurface.creatorStatCount}`);
   assertGate(failures, appShell.creatorSurface.signalCount === 4, `creator surface signal count is ${appShell.creatorSurface.signalCount}`);

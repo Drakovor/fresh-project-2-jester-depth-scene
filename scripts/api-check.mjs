@@ -101,6 +101,12 @@ try {
   assert(sessionLedger.actions.length === 3, 'session ledger did not expose own actions');
   assert(sessionLedger.actions[0].chronicleEventIds.length >= 1, 'session ledger did not link chronicle events');
 
+  const marks = await readJson('/api/world/me/marks', sessionId);
+  assert(marks.progression?.stage?.label, 'marks endpoint did not expose mask progression stage');
+  assert(marks.progression?.anchorZone?.label, 'marks endpoint did not expose mask progression anchor');
+  assert(marks.progression?.catalysts?.length === 4, 'marks endpoint did not expose mask catalysts');
+  assert(marks.progression?.recentChain?.length === 3, 'marks endpoint did not expose recent trace chain');
+
   const creator = await readJson('/api/creator/overview');
   assert(creator.ledger.tick === 3, 'creator overview did not expose current tick');
   assert(creator.ledger.actionCount === 3, 'creator overview did not count action ledger');

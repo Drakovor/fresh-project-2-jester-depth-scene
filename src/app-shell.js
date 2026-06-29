@@ -14,6 +14,7 @@ import {
   applyMove,
   createMask,
   createWorldState,
+  describeMaskProgression,
   describeMaskShape,
   describeMoveForecast,
   describeWorldZones,
@@ -416,9 +417,8 @@ function renderWorldView(summary, zones, relations, consequenceSummary, ledgerAc
 
 function renderMaskView(ledgerActions) {
   const maskShape = describeMaskShape(hollowState.mask);
-  const facets = Object.entries(hollowState.mask.shape?.facets ?? {})
-    .sort((left, right) => right[1] - left[1]);
-  const recentTrace = hollowState.lastTrace ?? ledgerActions[0]?.trace ?? null;
+  const progression = describeMaskProgression(hollowState.mask, hollowState.world);
+  const facets = progression.facets;
 
   return `
     <div class="surface-pane mask-pane">
@@ -426,10 +426,26 @@ function renderMaskView(ledgerActions) {
         <span class="surface-kicker">Mask</span>
         <strong>${hollowState.mask.will}</strong>
       </div>
+      <div class="mask-path-card" data-stage="${escapeText(progression.stage.id)}" style="--path-level: ${progression.stage.level}">
+        <span>${escapeText(progression.stage.label)}</span>
+        <b>${escapeText(progression.stage.note)}</b>
+        <small>next / ${escapeText(progression.stage.next)}</small>
+        <i aria-hidden="true"></i>
+      </div>
       <div class="creator-grid">
         <div><span>Drive</span><b>${escapeText(hollowState.mask.drive)}</b></div>
         <div><span>Shape</span><b>${escapeText(maskShape.silhouette)}</b></div>
         <div><span>Surface</span><b>${escapeText(maskShape.surface)}</b></div>
+      </div>
+      <div class="mask-catalyst-grid">
+        ${progression.catalysts.map((catalyst) => `
+          <div style="--catalyst-level: ${Number(catalyst.value) || 0}">
+            <span>${escapeText(catalyst.label)}</span>
+            <b>${formatPercent(catalyst.value)}</b>
+            <small>${escapeText(catalyst.detail)}</small>
+            <i aria-hidden="true"></i>
+          </div>
+        `).join('')}
       </div>
       <div class="surface-metrics">
         ${renderSurfaceMetric('Visibility', maskShape.visibility)}
@@ -437,10 +453,10 @@ function renderMaskView(ledgerActions) {
         ${renderSurfaceMetric('Will', Math.max(0, Math.min(1, hollowState.mask.will / 8)))}
       </div>
       <div class="mask-facet-grid">
-        ${facets.map(([facet, value]) => `
-          <span style="--facet-level: ${Number(value) || 0}">
-            ${escapeText(facet)}
-            <b>${formatPercent(value)}</b>
+        ${facets.map((facet) => `
+          <span style="--facet-level: ${Number(facet.value) || 0}" title="${escapeText(facet.meaning)}">
+            ${escapeText(facet.label)}
+            <b>${formatPercent(facet.value)}</b>
             <i aria-hidden="true"></i>
           </span>
         `).join('')}
@@ -448,7 +464,20 @@ function renderMaskView(ledgerActions) {
       <div class="mask-mark-list">
         <div><span>Marks</span><b>${hollowState.mask.marks.length}</b></div>
         <div><span>Scars</span><b>${hollowState.mask.scars.length}</b></div>
-        <div><span>Last</span><b>${escapeText(recentTrace?.move ?? recentTrace?.moveId ?? 'none')}</b></div>
+        <div><span>Anchor</span><b>${escapeText(progression.anchorZone.label)}</b></div>
+      </div>
+      <div class="mask-chain-list">
+        <div class="ledger-head">
+          <span class="surface-kicker">Trace chain</span>
+          <b>${progression.vector.traceCount}</b>
+        </div>
+        ${progression.recentChain.length === 0 ? '<p class="surface-empty">No trace in this Mask yet.</p>' : progression.recentChain.map((trace) => `
+          <article class="mask-chain-row">
+            <span>${escapeText(trace.move)}</span>
+            <b>${escapeText(trace.zoneLabel)}</b>
+            <small>${formatPercent(trace.visibility)} seen / ${formatPercent(trace.fracture)} fracture</small>
+          </article>
+        `).join('')}
       </div>
       ${renderActionLedger(ledgerActions.slice(0, 3), 'Owned')}
     </div>

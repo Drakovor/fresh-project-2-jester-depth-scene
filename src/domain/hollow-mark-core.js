@@ -343,6 +343,86 @@ export function describeMaskShape(maskState) {
   };
 }
 
+export function describeMaskProgression(maskState, worldState = createWorldState()) {
+  const world = normalizeWorldState(worldState);
+  assertCompatible(world, maskState);
+
+  const shape = normalizeMaskShape(maskState.shape ?? createInitialMaskShape(getDrive(maskState.drive)));
+  const traces = collectMaskTraces(world, maskState.id);
+  const actionCount = world.actionLog.filter((entry) => entry.maskId === maskState.id).length;
+  const anchorZone = chooseMaskAnchorZone(world, traces);
+  const facets = Object.entries(shape.facets)
+    .sort((left, right) => right[1] - left[1])
+    .map(([id, value]) => ({
+      id,
+      label: labelFacet(id),
+      value: clamp01(Number(value) || 0),
+      meaning: describeFacetMeaning(id),
+    }));
+  const dominantFacet = facets[0] ?? {
+    id: maskState.drive,
+    label: labelFacet(maskState.drive),
+    value: 0,
+    meaning: describeFacetMeaning(maskState.drive),
+  };
+  const stage = chooseMaskStage({
+    visibility: shape.visibility,
+    fracture: shape.fracture,
+    marks: maskState.marks.length,
+    scars: maskState.scars.length,
+    traceCount: traces.length,
+  });
+
+  return {
+    stage,
+    anchorZone,
+    vector: {
+      drive: maskState.drive,
+      dominantFacet: dominantFacet.id,
+      dominantFacetLabel: dominantFacet.label,
+      publicSignal: clamp01(shape.visibility),
+      fractureSignal: clamp01(shape.fracture),
+      traceCount: traces.length,
+      actionCount,
+    },
+    catalysts: [
+      {
+        id: 'visibility',
+        label: 'Public signal',
+        value: clamp01(shape.visibility),
+        detail: shape.visibility >= 0.28 ? 'seen by the room' : 'still mostly private',
+      },
+      {
+        id: 'fracture',
+        label: 'Fracture',
+        value: clamp01(shape.fracture),
+        detail: shape.fracture >= 0.32 ? 'cost is visible' : 'surface still holds',
+      },
+      {
+        id: 'anchor',
+        label: 'Anchor zone',
+        value: clamp01((anchorZone.traceCount / Math.max(traces.length, 1)) || 0),
+        detail: anchorZone.label,
+      },
+      {
+        id: 'will',
+        label: 'Will left',
+        value: clamp01(maskState.will / Math.max(getDrive(maskState.drive).will, 1)),
+        detail: `${maskState.will} remaining`,
+      },
+    ],
+    facets,
+    recentChain: traces.slice(0, 4).map((trace) => ({
+      id: trace.id,
+      move: trace.move,
+      zoneId: trace.zone,
+      zoneLabel: labelZone(trace.zone),
+      visibility: clamp01(trace.visibility),
+      fracture: clamp01(trace.fracture),
+    })),
+  };
+}
+
 function chooseZoneState({ pressure, clarity, fracture, visibleTraceCount, intensity }) {
   if (fracture >= 0.42) return 'fractured';
   if (visibleTraceCount >= 3 && clarity >= 0.5) return 'opened';
@@ -793,6 +873,114 @@ function chooseMaskSurface(trace, visibility, fracture) {
   if (trace.drive === 'pride') return 'pistachio-lacquer';
   if (trace.drive === 'static') return 'interference';
   return 'black-glass';
+}
+
+function collectMaskTraces(worldState, maskId) {
+  const world = normalizeWorldState(worldState);
+  return world.zones
+    .flatMap((zone) => {
+      return normalizeTraces(zone.traces)
+        .filter((trace) => trace.maskId === maskId)
+        .map((trace) => ({ ...trace, zoneLabel: zone.label }));
+    })
+    .sort((left, right) => String(right.at).localeCompare(String(left.at)));
+}
+
+function chooseMaskAnchorZone(worldState, traces) {
+  const world = normalizeWorldState(worldState);
+  const counts = traces.reduce((map, trace) => {
+    map.set(trace.zone, (map.get(trace.zone) ?? 0) + 1);
+    return map;
+  }, new Map());
+  const zone = [...world.zones]
+    .sort((left, right) => {
+      const leftCount = counts.get(left.id) ?? 0;
+      const rightCount = counts.get(right.id) ?? 0;
+      if (leftCount !== rightCount) return rightCount - leftCount;
+      const leftScore = left.pressure * 0.48 + (left.fracture ?? 0) * 0.3 + (1 - left.clarity) * 0.22;
+      const rightScore = right.pressure * 0.48 + (right.fracture ?? 0) * 0.3 + (1 - right.clarity) * 0.22;
+      return rightScore - leftScore;
+    })[0] ?? world.zones[0];
+  const projection = describeZoneProjection(zone, {
+    visibleTraceCount: Array.isArray(zone.visibleMarks) ? zone.visibleMarks.length : 0,
+    relationCount: countZoneRelations(world, zone.id),
+  });
+
+  return {
+    id: projection.id,
+    label: projection.label,
+    state: projection.state,
+    traceCount: counts.get(projection.id) ?? 0,
+    pressure: projection.pressure,
+    clarity: projection.clarity,
+    fracture: projection.fracture,
+    intensity: projection.intensity,
+  };
+}
+
+function chooseMaskStage({ visibility, fracture, marks, scars, traceCount }) {
+  const level = clamp01(
+    visibility * 0.38
+      + fracture * 0.26
+      + Math.min(marks, 4) * 0.1
+      + Math.min(scars, 3) * 0.08
+      + Math.min(traceCount, 6) * 0.04,
+  );
+
+  if (scars > 0 || fracture >= 0.36) {
+    return {
+      id: 'scar-bearing',
+      label: 'Scar-bearing',
+      note: 'the cost is now part of the identity',
+      level,
+      next: 'controlled fracture',
+    };
+  }
+  if (visibility >= 0.28 || marks > 0) {
+    return {
+      id: 'witnessed',
+      label: 'Witnessed',
+      note: 'the room can read part of this Mask',
+      level,
+      next: 'public shape',
+    };
+  }
+  if (traceCount > 0) {
+    return {
+      id: 'imprinted',
+      label: 'Imprinted',
+      note: 'private traces have started to gather',
+      level,
+      next: 'visible mark',
+    };
+  }
+  return {
+    id: 'unformed',
+    label: 'Unformed',
+    note: 'waiting for the first real pressure',
+    level,
+    next: 'first trace',
+  };
+}
+
+function labelFacet(facet) {
+  if (facet === 'softness') return 'Softness';
+  if (facet === 'defiance') return 'Defiance';
+  if (facet === 'pride') return 'Pride';
+  if (facet === 'static') return 'Static';
+  return facet;
+}
+
+function describeFacetMeaning(facet) {
+  if (facet === 'softness') return 'protects without becoming harmless';
+  if (facet === 'defiance') return 'pushes where the room expects obedience';
+  if (facet === 'pride') return 'holds posture under pressure';
+  if (facet === 'static') return 'breaks clean signals and timing';
+  return 'unreadable pressure';
+}
+
+function labelZone(zoneId) {
+  return ZONES.find((zone) => zone.id === zoneId)?.label ?? zoneId ?? 'Unknown zone';
 }
 
 function assertCompatible(worldState, maskState) {
