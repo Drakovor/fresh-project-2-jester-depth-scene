@@ -101,6 +101,23 @@ Rules for keeping it playable:
 - Rare events must come from world pressure, not random streamer gimmicks.
 - The player must never need to guess whether the app is broken, empty, or waiting for a stream.
 
+## Zone Loom
+
+The world map should not start as a flat map screen. The first version is the **Zone Loom**: a diegetic pressure projection inside the current room.
+
+Each zone exposes:
+
+- pressure
+- clarity
+- fracture
+- visible trace count
+- state: veiled, listening, pressured, fractured, opened
+- intensity
+
+Selecting a zone should alter the scene before a player commits a move. A move then makes that same zone pressure stronger, not as a popup reward, but as a material change in the room.
+
+This keeps the map feeling like the place is becoming readable, instead of turning the product into a normal quest board.
+
 ## Player Identity
 
 A Mask is built from tension, not from a standard RPG class.

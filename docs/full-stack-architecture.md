@@ -56,6 +56,7 @@ Needed next:
 
 - keep the character and scene as the art direction
 - let the world pulse subtly alter room material after actions
+- let selected zones and hot zones alter room material through Zone Loom
 - keep the control panel collapsed by default so the image remains premium
 
 ### Mask
@@ -84,6 +85,8 @@ Not a classic fog map. A zone has:
 - hidden traces
 - links to other zones
 - current state: calm, listening, pressured, fractured, opened
+
+The first map expression is **Zone Loom** in the Threshold. It projects selected-zone and hot-zone state into the room through pressure lines, floor echoes, and side-depth signals. It is not a minimap, quest board, or streamer overlay.
 
 ### Action Layer
 
@@ -223,6 +226,7 @@ Performance cache, not primary truth.
 - tick
 - pulse
 - zone_state
+- zone_loom_projection
 - created_at
 
 ## API Shape

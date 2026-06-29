@@ -208,6 +208,7 @@ export function computeWorldPulse(worldState) {
 }
 
 export function getPlayableSummary(worldState) {
+  const zones = describeWorldZones(worldState);
   const hotZones = [...worldState.zones]
     .sort((left, right) => right.pressure - left.pressure)
     .slice(0, 2)
@@ -218,8 +219,35 @@ export function getPlayableSummary(worldState) {
     tick: worldState.tick,
     pulse: computeWorldPulse(worldState),
     hotZones,
+    zones,
     visibleTraceCount: worldState.zones.reduce((total, zone) => total + zone.visibleMarks.length, 0),
   };
+}
+
+export function describeWorldZones(worldState) {
+  return worldState.zones.map((zone) => {
+    const pressure = clamp01(Number(zone.pressure) || 0);
+    const clarity = clamp01(Number(zone.clarity) || 0);
+    const fracture = clamp01(Number(zone.fracture) || 0);
+    const visibleTraceCount = Array.isArray(zone.visibleMarks) ? zone.visibleMarks.length : 0;
+    const intensity = clamp01(
+      pressure * 0.48
+        + fracture * 0.24
+        + (1 - clarity) * 0.18
+        + Math.min(visibleTraceCount, 4) * 0.08,
+    );
+
+    return {
+      id: zone.id,
+      label: zone.label,
+      pressure,
+      clarity,
+      fracture,
+      visibleTraceCount,
+      state: chooseZoneState({ pressure, clarity, fracture, visibleTraceCount, intensity }),
+      intensity,
+    };
+  });
 }
 
 export function describeMaskShape(maskState) {
@@ -236,6 +264,14 @@ export function describeMaskShape(maskState) {
     fracture: shape.fracture,
     visibility: shape.visibility,
   };
+}
+
+function chooseZoneState({ pressure, clarity, fracture, visibleTraceCount, intensity }) {
+  if (fracture >= 0.42) return 'fractured';
+  if (visibleTraceCount >= 3 && clarity >= 0.5) return 'opened';
+  if (pressure >= 0.64 || intensity >= 0.58) return 'pressured';
+  if (clarity >= 0.52) return 'listening';
+  return 'veiled';
 }
 
 function createTrace({ move, drive, zone, mask, now }) {

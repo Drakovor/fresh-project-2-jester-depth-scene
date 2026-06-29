@@ -74,6 +74,11 @@ const state = {
     maskVisibility: 0,
     maskFracture: 0,
     maskFacets: ['softness', 'defiance'],
+    selectedZone: 'threshold-floor',
+    selectedZoneState: 'listening',
+    selectedZoneIntensity: 0.34,
+    hotZones: [],
+    zones: [],
   },
   input: {
     mode: 'hover',
@@ -246,6 +251,9 @@ midLayer.addChild(presenceTrace.graphics);
 
 const hollowWorldTrace = makeHollowWorldTraceSystem();
 midLayer.addChild(hollowWorldTrace.graphics);
+
+const zoneLoom = makeZoneLoomSystem();
+midLayer.addChild(zoneLoom.graphics);
 midLayer.addChild(centralGlow);
 
 const cursorLight = new Sprite(textures.torch);
@@ -504,6 +512,32 @@ function syncHollowMarkState(detail) {
   state.hollow.maskFacets = Array.isArray(maskShape.dominantFacets)
     ? maskShape.dominantFacets.filter((facet) => typeof facet === 'string').slice(0, 2)
     : [];
+  state.hollow.selectedZone = typeof detail.selectedZone === 'string' ? detail.selectedZone : 'threshold-floor';
+  state.hollow.hotZones = Array.isArray(detail.summary?.hotZones)
+    ? detail.summary.hotZones.filter((zoneId) => typeof zoneId === 'string').slice(0, 3)
+    : [];
+  state.hollow.zones = Array.isArray(detail.zoneLoom)
+    ? detail.zoneLoom.map(normalizeZoneLoomItem).filter(Boolean)
+    : [];
+  const selectedZone = state.hollow.zones.find((zone) => zone.id === state.hollow.selectedZone)
+    ?? normalizeZoneLoomItem(detail.selectedZoneState)
+    ?? null;
+  state.hollow.selectedZoneState = selectedZone?.state ?? 'veiled';
+  state.hollow.selectedZoneIntensity = clamp(Number(selectedZone?.intensity) || 0, 0, 1);
+}
+
+function normalizeZoneLoomItem(zone) {
+  if (!zone || typeof zone.id !== 'string') return null;
+  return {
+    id: zone.id,
+    label: typeof zone.label === 'string' ? zone.label : zone.id,
+    pressure: clamp(Number(zone.pressure) || 0, 0, 1),
+    clarity: clamp(Number(zone.clarity) || 0, 0, 1),
+    fracture: clamp(Number(zone.fracture) || 0, 0, 1),
+    visibleTraceCount: Number(zone.visibleTraceCount) || 0,
+    state: typeof zone.state === 'string' ? zone.state : 'veiled',
+    intensity: clamp(Number(zone.intensity) || 0, 0, 1),
+  };
 }
 
 function animateScene(dt) {
@@ -604,6 +638,7 @@ function animateScene(dt) {
   depthShear.update(t, w, h, lookX, lookY, orbit.axis, breathe, slowPulse, portraitFactor);
   presenceTrace.update(t, w, h, lookX, lookY, orbit.axis, breathe, slowPulse);
   hollowWorldTrace.update(t, w, h, lookX, lookY, orbit.axis, breathe, slowPulse, state.hollow, portraitFactor);
+  zoneLoom.update(t, w, h, lookX, lookY, orbit.axis, breathe, slowPulse, state.hollow, portraitFactor);
   edgeGrade.alpha = 0.62 + breathe * 0.05;
   clarityLane.position.set(w * 0.5 + lookX * w * 0.01, h * 0.5 + lookY * h * 0.006);
   clarityLane.scale.set(clarityLane.baseScale * (1.002 + Math.abs(lookX) * 0.006));
@@ -711,6 +746,13 @@ function animateScene(dt) {
   document.body.dataset.hollowWorldTraceAxis = orbit.axis;
   document.body.dataset.hollowWorldTraceEnergy = hollowWorldTrace.energy.toFixed(3);
   document.body.dataset.hollowWorldTraceAlpha = hollowWorldTrace.alpha.toFixed(3);
+  document.body.dataset.zoneLoomMode = 'diegetic-zone-loom-pressure-map';
+  document.body.dataset.zoneLoomAxis = orbit.axis;
+  document.body.dataset.zoneLoomActive = zoneLoom.activeZone;
+  document.body.dataset.zoneLoomState = zoneLoom.state;
+  document.body.dataset.zoneLoomAlpha = zoneLoom.alpha.toFixed(3);
+  document.body.dataset.zoneLoomIntensity = zoneLoom.intensity.toFixed(3);
+  document.body.dataset.zoneLoomHotCount = String(zoneLoom.hotCount);
   document.body.dataset.maskResonanceMode = 'pose-locked-hollow-mask-resonance';
   document.body.dataset.maskResonanceDrive = maskResonance.drive;
   document.body.dataset.maskResonanceSilhouette = maskResonance.silhouette;
@@ -3090,6 +3132,174 @@ function drawHollowWorldTrace(g, veins, witnessNodes, t, w, h, lookX, lookY, axi
     g.moveTo(floorX - w * (0.08 + fracture * 0.04), floorY - h * 0.018);
     g.lineTo(floorX + w * (0.04 + pressure * 0.05), floorY - h * (0.024 + fracture * 0.024));
   }
+}
+
+function makeZoneLoomSystem() {
+  const graphics = new Graphics();
+  graphics.blendMode = BLEND_MODES.ADD;
+  const rng = createRng('diegetic-zone-loom-pressure-map');
+  const filaments = Array.from({ length: 24 }, (_, index) => ({
+    zoneId: ['threshold-floor', 'black-glass-service', 'violet-rail', 'ember-underpass', 'pistachio-static'][index % 5],
+    phase: randRange(rng, 0, Math.PI * 2),
+    drift: randRange(rng, -0.018, 0.018),
+    depth: randRange(rng, 0.25, 1),
+    width: randRange(rng, 0.45, 1.1),
+  }));
+
+  return {
+    graphics,
+    alpha: 0,
+    intensity: 0,
+    activeZone: 'threshold-floor',
+    state: 'listening',
+    hotCount: 0,
+    update(t, w, h, lookX, lookY, axis, breathe, slowPulse, hollow, portraitFactor) {
+      const zones = Array.isArray(hollow?.zones) ? hollow.zones : [];
+      const activeZone = typeof hollow?.selectedZone === 'string' ? hollow.selectedZone : 'threshold-floor';
+      const selected = zones.find((zone) => zone.id === activeZone) ?? null;
+      const zoneIntensity = clamp(Number(selected?.intensity ?? hollow?.selectedZoneIntensity) || 0, 0, 1);
+      const tick = Number(hollow?.tick) || 0;
+      const traceCount = Number(hollow?.visibleTraceCount) || 0;
+      const pressure = clamp(Number(hollow?.pressure) || 0, 0, 1);
+      const targetIntensity = clamp(zoneIntensity + Math.min(traceCount, 6) * 0.035 + Math.min(tick, 12) * 0.012 + pressure * 0.08, 0, 1);
+      const targetAlpha = clamp(0.038 + targetIntensity * 0.105 + slowPulse * 0.008, 0, 0.17);
+
+      this.alpha += (targetAlpha - this.alpha) * 0.07;
+      this.intensity += (targetIntensity - this.intensity) * 0.08;
+      this.activeZone = activeZone;
+      this.state = typeof selected?.state === 'string' ? selected.state : hollow?.selectedZoneState ?? 'veiled';
+      this.hotCount = Array.isArray(hollow?.hotZones) ? hollow.hotZones.length : 0;
+
+      drawZoneLoom(
+        graphics,
+        filaments,
+        t,
+        w,
+        h,
+        lookX,
+        lookY,
+        axis,
+        breathe,
+        this.alpha,
+        this.intensity,
+        zones,
+        activeZone,
+        this.state,
+        Array.isArray(hollow?.hotZones) ? hollow.hotZones : [],
+        portraitFactor,
+      );
+    },
+  };
+}
+
+function drawZoneLoom(g, filaments, t, w, h, lookX, lookY, axis, breathe, alpha, intensity, zones, activeZone, activeState, hotZones, portraitFactor) {
+  g.clear();
+  g.alpha = alpha;
+  if (alpha <= 0.004) return;
+
+  const floorX = w * ANCHOR.floorCircleX;
+  const floorY = h * ANCHOR.floorCircleY;
+  const portraitDamp = 1 - portraitFactor * 0.22;
+  const axisPull = axis === 'x'
+    ? clamp(lookX / CAMERA.orbitLimitX, -1, 1)
+    : axis === 'y'
+      ? clamp(lookY / CAMERA.orbitLimitY, -1, 1) * 0.42
+      : 0;
+  const zoneItems = zones.length > 0 ? zones : [
+    { id: 'threshold-floor', pressure: 0.24, clarity: 0.62, fracture: 0, state: 'listening', intensity: 0.32, visibleTraceCount: 0 },
+  ];
+
+  for (const filament of filaments) {
+    const zone = zoneItems.find((item) => item.id === filament.zoneId);
+    if (!zone) continue;
+    const anchor = getZoneLoomAnchor(zone.id, w, h, lookX, lookY);
+    const active = zone.id === activeZone;
+    const hot = hotZones.includes(zone.id);
+    const zoneCharge = clamp((zone.intensity ?? 0) + (active ? 0.16 : 0) + (hot ? 0.1 : 0) + (zone.visibleTraceCount || 0) * 0.045, 0, 1);
+    if (zoneCharge < 0.18 && !active) continue;
+
+    const pulse = Math.max(0, Math.sin(t * (0.22 + filament.depth * 0.25) + filament.phase));
+    const color = getZoneLoomColor(zone, activeState);
+    const startX = floorX + axisPull * w * (0.008 + filament.depth * 0.005);
+    const startY = floorY - h * (0.004 + filament.depth * 0.008);
+    const controlX = (startX + anchor.x) * 0.5 + Math.sin(filament.phase) * w * (0.018 + filament.depth * 0.018);
+    const controlY = Math.min(startY, anchor.y) - h * (0.025 + zoneCharge * 0.07 + filament.drift);
+    const lineAlpha = (0.012 + zoneCharge * 0.052 + pulse * 0.015 + intensity * 0.018) * portraitDamp;
+
+    g.lineStyle(filament.width + zoneCharge * 0.7, color, lineAlpha * (color === 0xbcffb0 ? 0.68 : 1));
+    g.moveTo(startX, startY);
+    g.quadraticCurveTo(controlX, controlY, anchor.x, anchor.y);
+  }
+
+  for (const zone of zoneItems) {
+    const anchor = getZoneLoomAnchor(zone.id, w, h, lookX, lookY);
+    const active = zone.id === activeZone;
+    const hot = hotZones.includes(zone.id);
+    const color = getZoneLoomColor(zone, activeState);
+    const pressure = clamp(Number(zone.pressure) || 0, 0, 1);
+    const clarity = clamp(Number(zone.clarity) || 0, 0, 1);
+    const fracture = clamp(Number(zone.fracture) || 0, 0, 1);
+    const zoneCharge = clamp((zone.intensity ?? 0) + (active ? 0.18 : 0) + (hot ? 0.12 : 0), 0, 1);
+    const pulse = 0.5 + Math.sin(t * (0.28 + pressure * 0.22) + anchor.phase) * 0.5;
+    const radiusX = w * anchor.rx * (0.72 + zoneCharge * 0.5 + pulse * 0.08);
+    const radiusY = h * anchor.ry * (0.7 + pressure * 0.34 + fracture * 0.36);
+    const baseAlpha = (0.018 + zoneCharge * 0.074 + active * 0.026 + hot * 0.018) * portraitDamp;
+
+    g.lineStyle(0.65 + zoneCharge * 1.25 + active * 0.4, color, baseAlpha);
+    g.drawEllipse(anchor.x, anchor.y, radiusX, radiusY);
+
+    if (active || hot || fracture > 0.04) {
+      g.lineStyle(0.5 + fracture * 1.2, fracture > 0.2 ? 0xffa25d : color, baseAlpha * 0.58);
+      g.moveTo(anchor.x - radiusX * (0.82 + fracture * 0.2), anchor.y + radiusY * 0.1);
+      g.lineTo(anchor.x + radiusX * (0.46 + clarity * 0.24), anchor.y - radiusY * (0.18 + fracture * 0.3));
+    }
+
+    if (active) {
+      g.beginFill(color, baseAlpha * 0.18);
+      g.drawEllipse(anchor.x + axisPull * w * 0.004, anchor.y, radiusX * 0.45, radiusY * 0.34);
+      g.endFill();
+    }
+  }
+
+  const floorAlpha = (0.026 + intensity * 0.058 + breathe * 0.012) * portraitDamp;
+  g.lineStyle(0.75 + intensity * 0.9, getZoneStateColor(activeState), floorAlpha);
+  g.drawEllipse(
+    floorX + lookX * w * 0.003,
+    floorY + lookY * h * 0.004,
+    w * (0.085 + intensity * 0.08),
+    h * (0.014 + intensity * 0.014),
+  );
+}
+
+function getZoneLoomAnchor(zoneId, w, h, lookX, lookY) {
+  const anchors = {
+    'threshold-floor': { x: 0.53, y: 0.825, rx: 0.052, ry: 0.014, phase: 0.2 },
+    'black-glass-service': { x: 0.255, y: 0.61, rx: 0.032, ry: 0.018, phase: 1.4 },
+    'violet-rail': { x: 0.365, y: 0.43, rx: 0.034, ry: 0.015, phase: 2.5 },
+    'ember-underpass': { x: 0.725, y: 0.68, rx: 0.04, ry: 0.018, phase: 3.2 },
+    'pistachio-static': { x: 0.805, y: 0.49, rx: 0.034, ry: 0.016, phase: 4.1 },
+  };
+  const anchor = anchors[zoneId] ?? anchors['threshold-floor'];
+  const parallax = zoneId === 'threshold-floor' ? 0.003 : 0.016 + anchor.y * 0.008;
+  return {
+    ...anchor,
+    x: w * anchor.x + lookX * w * parallax,
+    y: h * anchor.y + lookY * h * (parallax * 0.72),
+  };
+}
+
+function getZoneLoomColor(zone, activeState) {
+  if (zone.state === 'fractured') return 0xffa25d;
+  if (zone.id === 'pistachio-static' || zone.state === 'opened') return 0xbcffb0;
+  if (zone.id === 'ember-underpass' || activeState === 'pressured') return 0xffa25d;
+  if (zone.id === 'violet-rail') return 0xb58aff;
+  return 0x9d63e5;
+}
+
+function getZoneStateColor(state) {
+  if (state === 'fractured' || state === 'pressured') return 0xffa25d;
+  if (state === 'opened') return 0xbcffb0;
+  return 0x9d63e5;
 }
 
 function makeMaskResonanceSystem() {

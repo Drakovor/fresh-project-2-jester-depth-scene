@@ -15,6 +15,7 @@ import {
   createMask,
   createWorldState,
   describeMaskShape,
+  describeWorldZones,
   getPlayableSummary,
 } from './domain/hollow-mark-core.js';
 
@@ -92,10 +93,14 @@ function emitPresence() {
 function emitHollowMark() {
   const summary = getPlayableSummary(hollowState.world);
   const maskShape = describeMaskShape(hollowState.mask);
+  const zoneLoom = describeWorldZones(hollowState.world);
+  const selectedZoneState = zoneLoom.find((zone) => zone.id === hollowState.selectedZone) ?? zoneLoom[0];
   window.__hollowMark = {
     version: HOLLOW_MARK_MODEL_VERSION,
     mask: { ...hollowState.mask },
     maskShape,
+    zoneLoom,
+    selectedZoneState,
     selectedZone: hollowState.selectedZone,
     selectedMove: hollowState.selectedMove,
     summary,
@@ -156,6 +161,7 @@ function renderHollowMarkPanel() {
   const selectedZone = getSelectedZone();
   const selectedMove = getSelectedMove();
   const summary = getPlayableSummary(hollowState.world);
+  const zoneLoom = describeWorldZones(hollowState.world);
   const maskShape = describeMaskShape(hollowState.mask);
   const traceList = collectVisibleTraces().slice(0, 5);
 
@@ -209,17 +215,21 @@ function renderHollowMarkPanel() {
           <div class="hollow-block">
             <span class="hollow-kicker">Zones</span>
             <div class="zone-list" role="listbox" aria-label="Zones">
-              ${hollowState.world.zones.map((zone) => `
+              ${hollowState.world.zones.map((zone) => {
+                const zoneState = zoneLoom.find((item) => item.id === zone.id);
+                return `
                 <button
                   class="zone-choice"
                   type="button"
                   data-zone="${zone.id}"
+                  data-state="${zoneState?.state ?? 'veiled'}"
                   aria-selected="${zone.id === hollowState.selectedZone}"
                 >
                   <span>${zone.label}</span>
                   <b>${formatPercent(zone.pressure)}</b>
                 </button>
-              `).join('')}
+              `;
+              }).join('')}
             </div>
           </div>
 

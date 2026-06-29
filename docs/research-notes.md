@@ -8,6 +8,7 @@ This file keeps the external research anchors used for Hollow Mark decisions. It
 - MDA game design framework: https://users.cs.northwestern.edu/~hunicke/MDA.pdf
 - MDN WebGL best practices: https://developer.mozilla.org/en-US/docs/Web/API/WebGL_API/WebGL_best_practices
 - MDN canvas compositing reference: https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/globalCompositeOperation
+- Henry Jenkins on game design as spatial/environmental storytelling: https://web.mit.edu/~21fms/People/henry3/games%26narrative.html
 
 ## Product Takeaways
 
@@ -37,3 +38,10 @@ This file keeps the external research anchors used for Hollow Mark decisions. It
 - Exposed Mask shape from the app shell to the Pixi renderer so player identity can affect scene material.
 - Added a pose-locked, scene-bound Mask resonance layer behind the character. It responds to drive, silhouette, surface, visibility, fracture, trace count, and world tick without moving the character or making the room pale.
 - Visual gates now verify Mask resonance mode, drive, silhouette, visibility, and alpha range.
+
+## Applied Zone Loom Pass
+
+- Added a world-zone state projection so every zone can expose pressure, clarity, fracture, visible trace count, state, and intensity.
+- Added a code-generated Zone Loom layer that renders selected zones and hot zones as room-material pressure lines rather than a flat minimap or streamer overlay.
+- Zone selection now changes the scene signal before any move is committed; committing a move increases trace/world pressure in the same scene language.
+- The visual check now verifies Zone Loom mode, active zone, zone state, alpha, intensity, hot-zone count, and a real selected-zone move.

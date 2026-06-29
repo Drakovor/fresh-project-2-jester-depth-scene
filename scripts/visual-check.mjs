@@ -243,16 +243,22 @@ async function checkAppShell(browser, consoleMessages) {
     await page.waitForTimeout(420);
     const selected = await readSceneState(page, 'app-shell-defiance');
     await page.click('.hollow-toggle');
+    await page.click('[data-zone="pistachio-static"]');
+    await page.waitForTimeout(420);
+    const zoneSelected = await readSceneState(page, 'app-shell-zone-selected');
     await page.click('.commit-move');
     await page.waitForTimeout(700);
     const afterMove = await readSceneState(page, 'app-shell-after-move');
     const shell = await page.evaluate(() => {
       const dock = document.querySelector('.presence-dock');
       const panel = document.querySelector('.hollow-panel');
+      const selectedZone = document.querySelector('.zone-choice[aria-selected="true"]');
       return {
         dockOpen: dock?.dataset.open,
         dockPhase: dock?.dataset.phase,
         hollowOpen: panel?.dataset.open,
+        selectedZone: selectedZone?.dataset.zone,
+        selectedZoneState: selectedZone?.dataset.state,
         hollowTick: document.querySelector('.hollow-toggle b')?.textContent,
         visibleTraceCount: document.querySelector('.trace-head b')?.textContent,
         selectedPressed: document.querySelector('[data-presence="defiance"]')?.getAttribute('aria-pressed'),
@@ -273,6 +279,7 @@ async function checkAppShell(browser, consoleMessages) {
       viewport,
       initial,
       selected,
+      zoneSelected,
       afterMove,
       restored,
       shell,
@@ -450,6 +457,13 @@ function evaluateQualityGates(report) {
       assertGate(failures, sample.hollowWorldTraceAxis === sample.cameraAxis, `${name}/${sample.sample}: hollow world trace axis ${sample.hollowWorldTraceAxis} does not match camera ${sample.cameraAxis}`);
       assertGate(failures, sample.hollowWorldTraceEnergy >= 0 && sample.hollowWorldTraceEnergy <= 1, `${name}/${sample.sample}: hollow world trace energy out of range (${sample.hollowWorldTraceEnergy})`);
       assertGate(failures, sample.hollowWorldTraceAlpha >= 0 && sample.hollowWorldTraceAlpha <= 0.22, `${name}/${sample.sample}: hollow world trace alpha out of range (${sample.hollowWorldTraceAlpha})`);
+      assertGate(failures, sample.zoneLoomMode === 'diegetic-zone-loom-pressure-map', `${name}/${sample.sample}: zone loom mode is ${sample.zoneLoomMode}`);
+      assertGate(failures, sample.zoneLoomAxis === sample.cameraAxis, `${name}/${sample.sample}: zone loom axis ${sample.zoneLoomAxis} does not match camera ${sample.cameraAxis}`);
+      assertGate(failures, ['threshold-floor', 'black-glass-service', 'violet-rail', 'ember-underpass', 'pistachio-static'].includes(sample.zoneLoomActive), `${name}/${sample.sample}: zone loom active zone is ${sample.zoneLoomActive}`);
+      assertGate(failures, ['veiled', 'listening', 'pressured', 'fractured', 'opened'].includes(sample.zoneLoomState), `${name}/${sample.sample}: zone loom state is ${sample.zoneLoomState}`);
+      assertGate(failures, sample.zoneLoomAlpha >= 0 && sample.zoneLoomAlpha <= 0.17, `${name}/${sample.sample}: zone loom alpha out of range (${sample.zoneLoomAlpha})`);
+      assertGate(failures, sample.zoneLoomIntensity >= 0 && sample.zoneLoomIntensity <= 1, `${name}/${sample.sample}: zone loom intensity out of range (${sample.zoneLoomIntensity})`);
+      assertGate(failures, sample.zoneLoomHotCount >= 0 && sample.zoneLoomHotCount <= 3, `${name}/${sample.sample}: zone loom hot count out of range (${sample.zoneLoomHotCount})`);
       assertGate(failures, sample.maskResonanceMode === 'pose-locked-hollow-mask-resonance', `${name}/${sample.sample}: mask resonance mode is ${sample.maskResonanceMode}`);
       assertGate(failures, ['softness', 'defiance', 'pride', 'static', 'unformed'].includes(sample.maskResonanceDrive), `${name}/${sample.sample}: mask resonance drive is ${sample.maskResonanceDrive}`);
       assertGate(failures, ['veiled', 'lifted', 'offset', 'forward-leaning', 'split-crest', 'split', 'unformed'].includes(sample.maskResonanceSilhouette), `${name}/${sample.sample}: mask resonance silhouette is ${sample.maskResonanceSilhouette}`);
@@ -541,13 +555,21 @@ function evaluateAppShellGates(failures, appShell) {
   assertGate(failures, appShell.selected.appThresholdPhase === 'unbound', `app shell selected phase is ${appShell.selected.appThresholdPhase}`);
   assertGate(failures, appShell.selected.appThresholdValue >= 0.66, `app shell selected threshold too low (${appShell.selected.appThresholdValue})`);
   assertGate(failures, appShell.selected.appPresenceTone === 'ember', `app shell selected tone is ${appShell.selected.appPresenceTone}`);
+  assertGate(failures, appShell.zoneSelected.zoneLoomActive === 'pistachio-static', `zone loom active after zone select is ${appShell.zoneSelected.zoneLoomActive}`);
+  assertGate(failures, appShell.zoneSelected.zoneLoomState === 'pressured', `zone loom state after zone select is ${appShell.zoneSelected.zoneLoomState}`);
+  assertGate(failures, appShell.zoneSelected.zoneLoomIntensity >= appShell.selected.zoneLoomIntensity, `zone loom intensity did not rise after zone select (${appShell.selected.zoneLoomIntensity} -> ${appShell.zoneSelected.zoneLoomIntensity})`);
   assertGate(failures, appShell.afterMove.hollowMarkTick >= 1, `app shell hollow mark tick did not advance (${appShell.afterMove.hollowMarkTick})`);
   assertGate(failures, appShell.afterMove.hollowMarkVisibleTraces >= 1, `app shell visible traces did not advance (${appShell.afterMove.hollowMarkVisibleTraces})`);
+  assertGate(failures, appShell.afterMove.zoneLoomActive === 'pistachio-static', `zone loom active after move is ${appShell.afterMove.zoneLoomActive}`);
+  assertGate(failures, appShell.afterMove.zoneLoomIntensity >= appShell.zoneSelected.zoneLoomIntensity, `zone loom intensity weakened after move (${appShell.zoneSelected.zoneLoomIntensity} -> ${appShell.afterMove.zoneLoomIntensity})`);
+  assertGate(failures, appShell.afterMove.zoneLoomHotCount >= 1, `zone loom hot count after move is ${appShell.afterMove.zoneLoomHotCount}`);
   assertGate(failures, appShell.afterMove.maskResonanceDrive === 'defiance', `app shell mask resonance drive after move is ${appShell.afterMove.maskResonanceDrive}`);
   assertGate(failures, appShell.afterMove.maskResonanceVisibility > appShell.selected.maskResonanceVisibility, `mask resonance visibility did not react after move (${appShell.selected.maskResonanceVisibility} -> ${appShell.afterMove.maskResonanceVisibility})`);
   assertGate(failures, appShell.afterMove.maskResonanceAlpha >= appShell.selected.maskResonanceAlpha, `mask resonance alpha weakened after move (${appShell.selected.maskResonanceAlpha} -> ${appShell.afterMove.maskResonanceAlpha})`);
   assertGate(failures, appShell.shell.dockPhase === 'unbound', `app shell dock phase is ${appShell.shell.dockPhase}`);
   assertGate(failures, appShell.shell.hollowOpen === 'true', `app shell hollow panel open is ${appShell.shell.hollowOpen}`);
+  assertGate(failures, appShell.shell.selectedZone === 'pistachio-static', `app shell selected zone is ${appShell.shell.selectedZone}`);
+  assertGate(failures, appShell.shell.selectedZoneState === 'pressured', `app shell selected zone state is ${appShell.shell.selectedZoneState}`);
   assertGate(failures, Number(appShell.shell.hollowTick) >= 1, `app shell hollow tick text is ${appShell.shell.hollowTick}`);
   assertGate(failures, Number(appShell.shell.visibleTraceCount) >= 1, `app shell visible trace text is ${appShell.shell.visibleTraceCount}`);
   assertGate(failures, Number(appShell.shell.thresholdLevel) >= 0.66, `app shell threshold level too low (${appShell.shell.thresholdLevel})`);
@@ -707,6 +729,13 @@ async function readSceneState(page, sample) {
       hollowWorldTraceAlpha: Number(document.body.dataset.hollowWorldTraceAlpha),
       hollowMarkTick: Number(document.body.dataset.hollowMarkTick),
       hollowMarkVisibleTraces: Number(document.body.dataset.hollowMarkVisibleTraces),
+      zoneLoomMode: document.body.dataset.zoneLoomMode,
+      zoneLoomAxis: document.body.dataset.zoneLoomAxis,
+      zoneLoomActive: document.body.dataset.zoneLoomActive,
+      zoneLoomState: document.body.dataset.zoneLoomState,
+      zoneLoomAlpha: Number(document.body.dataset.zoneLoomAlpha),
+      zoneLoomIntensity: Number(document.body.dataset.zoneLoomIntensity),
+      zoneLoomHotCount: Number(document.body.dataset.zoneLoomHotCount),
       maskResonanceMode: document.body.dataset.maskResonanceMode,
       maskResonanceDrive: document.body.dataset.maskResonanceDrive,
       maskResonanceSilhouette: document.body.dataset.maskResonanceSilhouette,
