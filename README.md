@@ -49,6 +49,7 @@ No old assets are required. If those files are missing, the app renders a proced
 - Dual-tone rim light may separate the character from the room, but must stay subtle and locked to the same pose/anchor as the character sprite.
 - Pose-locked micro-lustre may add tiny living glints to costume details, but must follow the character pose and remain below visible UI/reward/badge intensity.
 - Ambient particles, cloth strands, haze, sparks, glass marks, living wall/floor signals, and signature floor circuits use named deterministic seeds for a stable premium render.
+- Edge-bound prismatic fringe may add subtle optical depth at viewport borders, but must follow the camera rail and never touch the central character/clarity lane.
 - Procedural cinematic grain may add fine material texture, but must stay below visible dirt/noise intensity and preserve the central clarity lane.
 - Runtime effects stay around the scene and depth layers instead of becoming a visible UI overlay.
 - Living signals belong to the room language: they should feel like the place is awake, never like carnival lights or streamer badges.

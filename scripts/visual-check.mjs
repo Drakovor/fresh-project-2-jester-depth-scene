@@ -366,6 +366,9 @@ function evaluateQualityGates(report) {
       assertGate(failures, isAlphaPairInRange(sample.characterRimAlpha, 0.024, 0.072), `${name}/${sample.sample}: character rim alpha out of range (${sample.characterRimAlpha})`);
       assertGate(failures, sample.subjectLustreMode === 'pose-locked-micro-lustre', `${name}/${sample.sample}: subject lustre mode is ${sample.subjectLustreMode}`);
       assertGate(failures, sample.subjectLustrePeak >= 0.025 && sample.subjectLustrePeak <= 0.13, `${name}/${sample.sample}: subject lustre peak out of range (${sample.subjectLustrePeak})`);
+      assertGate(failures, sample.lensFringeMode === 'edge-bound-prismatic-fringe', `${name}/${sample.sample}: lens fringe mode is ${sample.lensFringeMode}`);
+      assertGate(failures, sample.lensFringeAxis === sample.cameraAxis, `${name}/${sample.sample}: lens fringe axis ${sample.lensFringeAxis} does not match camera ${sample.cameraAxis}`);
+      assertGate(failures, sample.lensFringeAlpha >= 0.03 && sample.lensFringeAlpha <= 0.095, `${name}/${sample.sample}: lens fringe alpha out of range (${sample.lensFringeAlpha})`);
       assertGate(failures, sample.cinematicGrainMode === 'procedural-cinematic-grain', `${name}/${sample.sample}: cinematic grain mode is ${sample.cinematicGrainMode}`);
       assertGate(failures, sample.cinematicGrainAlpha >= 0.024 && sample.cinematicGrainAlpha <= 0.052, `${name}/${sample.sample}: cinematic grain alpha out of range (${sample.cinematicGrainAlpha})`);
       assertGate(failures, sample.anchorLayer === 'backgroundLayer', `${name}/${sample.sample}: anchorLayer is ${sample.anchorLayer}`);
@@ -552,6 +555,9 @@ async function readSceneState(page, sample) {
       characterRimAlpha: document.body.dataset.characterRimAlpha,
       subjectLustreMode: document.body.dataset.subjectLustreMode,
       subjectLustrePeak: Number(document.body.dataset.subjectLustrePeak),
+      lensFringeMode: document.body.dataset.lensFringeMode,
+      lensFringeAxis: document.body.dataset.lensFringeAxis,
+      lensFringeAlpha: Number(document.body.dataset.lensFringeAlpha),
       cinematicGrainMode: document.body.dataset.cinematicGrainMode,
       cinematicGrainAlpha: Number(document.body.dataset.cinematicGrainAlpha),
       subjectFoot: document.body.dataset.subjectFoot,

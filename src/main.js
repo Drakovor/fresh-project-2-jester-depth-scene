@@ -275,6 +275,9 @@ characterLayer.addChild(cloth.container);
 const subjectLustre = makeSubjectLustreSystem();
 characterLayer.addChild(subjectLustre.container);
 
+const lensFringe = makeLensFringeSystem();
+postLayer.addChild(lensFringe.graphics);
+
 const cinematicGrain = makeCinematicGrainSystem();
 postLayer.addChild(cinematicGrain.container);
 
@@ -553,6 +556,7 @@ function animateScene(dt) {
   eyelids.update(t, character);
   cloth.update(t, character);
   subjectLustre.update(t, character, lookX, lookY, breathe, slowPulse);
+  lensFringe.update(t, w, h, lookX, lookY, orbit.axis, breathe, slowPulse, portraitFactor);
   cinematicGrain.update(t, w, h, lookX, lookY, breathe, portraitFactor);
   document.body.dataset.cameraArc = lookY.toFixed(3);
   document.body.dataset.cameraOrbit = lookX.toFixed(3);
@@ -594,6 +598,9 @@ function animateScene(dt) {
   document.body.dataset.characterRimAlpha = `${characterRimWarm.alpha.toFixed(3)},${characterRimCool.alpha.toFixed(3)}`;
   document.body.dataset.subjectLustreMode = 'pose-locked-micro-lustre';
   document.body.dataset.subjectLustrePeak = subjectLustre.peak.toFixed(3);
+  document.body.dataset.lensFringeMode = 'edge-bound-prismatic-fringe';
+  document.body.dataset.lensFringeAxis = orbit.axis;
+  document.body.dataset.lensFringeAlpha = lensFringe.alpha.toFixed(3);
   document.body.dataset.cinematicGrainMode = 'procedural-cinematic-grain';
   document.body.dataset.cinematicGrainAlpha = cinematicGrain.alpha.toFixed(3);
   document.body.dataset.cameraPivot = `${Math.round(focusX)},${Math.round(focusY)}`;
@@ -1040,6 +1047,70 @@ function makeCinematicGrainSystem() {
       this.alpha = grainAlpha;
     },
   };
+}
+
+function makeLensFringeSystem() {
+  const graphics = new Graphics();
+  graphics.blendMode = BLEND_MODES.ADD;
+
+  return {
+    graphics,
+    alpha: 0,
+    update(t, w, h, lookX, lookY, axis, breathe, slowPulse, portraitFactor) {
+      this.alpha = drawLensFringe(graphics, t, w, h, lookX, lookY, axis, breathe, slowPulse, portraitFactor);
+    },
+  };
+}
+
+function drawLensFringe(g, t, w, h, lookX, lookY, axis, breathe, slowPulse, portraitFactor) {
+  const sideStrength = axis === 'x' ? Math.min(1, Math.abs(lookX) / CAMERA.orbitLimitX) : 0;
+  const verticalStrength = axis === 'y' ? Math.min(1, Math.abs(lookY) / CAMERA.orbitLimitY) : 0;
+  const active = Math.max(sideStrength, verticalStrength);
+  const alpha = clamp(0.046 + breathe * 0.012 + active * 0.032 - portraitFactor * 0.01, 0.034, 0.09);
+
+  g.clear();
+  g.alpha = alpha;
+
+  for (const side of [-1, 1]) {
+    const reveal = axis === 'x'
+      ? clamp(0.18 + side * lookX / CAMERA.orbitLimitX, 0.08, 1)
+      : 0.18 + verticalStrength * 0.12;
+    const edgeX = side < 0 ? w * 0.026 : w * 0.974;
+    const lean = side * w * (0.018 + reveal * 0.012);
+
+    for (let i = 0; i < 7; i += 1) {
+      const p = i / 6;
+      const y = h * (0.12 + p * 0.76) + Math.sin(t * 0.12 + i) * h * 0.002 + lookY * h * 0.006;
+      const length = w * (0.018 + p * 0.025 + reveal * 0.018);
+      const color = i % 3 === 0 ? 0xffa25d : i % 3 === 1 ? 0x9d63e5 : 0xbcffb0;
+      const lineAlpha = (0.08 + reveal * 0.22 + slowPulse * 0.04) * (color === 0xbcffb0 ? 0.62 : 1);
+
+      g.lineStyle(0.6 + reveal * 0.65, color, lineAlpha);
+      g.moveTo(edgeX, y);
+      g.lineTo(edgeX - side * length + lean, y + h * (0.006 - p * 0.004));
+    }
+  }
+
+  if (axis === 'y') {
+    const topBias = lookY < 0 ? 1 : 0.38;
+    const bottomBias = lookY > 0 ? 1 : 0.38;
+
+    for (let i = 0; i < 4; i += 1) {
+      const p = i / 3;
+      const x = w * (0.16 + p * 0.68) + Math.sin(t * 0.09 + i) * w * 0.002 + lookX * w * 0.004;
+      const color = i % 2 === 0 ? 0x9d63e5 : 0xffa25d;
+
+      g.lineStyle(0.58 + verticalStrength * 0.5, color, (0.045 + verticalStrength * 0.14) * topBias);
+      g.moveTo(x - w * 0.032, h * 0.035);
+      g.lineTo(x + w * 0.038, h * (0.05 + p * 0.012));
+
+      g.lineStyle(0.58 + verticalStrength * 0.5, color, (0.038 + verticalStrength * 0.12) * bottomBias);
+      g.moveTo(x - w * 0.028, h * 0.965);
+      g.lineTo(x + w * 0.034, h * (0.945 - p * 0.01));
+    }
+  }
+
+  return alpha;
 }
 
 function makeCinematicGrainTexture(kind) {
