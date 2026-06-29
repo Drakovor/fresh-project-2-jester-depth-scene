@@ -53,19 +53,33 @@ try {
   assert(moved.summary.visibleTraceCount > 0, 'move did not create a visible trace');
   assert(moved.consequenceSummary?.publicCount >= 1, 'session payload did not include public consequences');
   assert(moved.consequenceSummary?.eventTypeCounts?.visible_trace >= 1, 'visible trace consequence was not counted');
+  assert(Array.isArray(moved.ledger) && moved.ledger.length === 1, 'session payload did not include action ledger');
+  assert(moved.ledger[0].after?.zoneState, 'session ledger did not expose after state');
 
   const chronicle = await readJson('/api/chronicle/public');
   assert(chronicle.events.length >= 1, 'chronicle did not record public event');
   assert(chronicle.events.some((event) => event.eventType === 'visible_trace'), 'chronicle did not include visible trace event');
 
+  const publicLedger = await readJson('/api/ledger/public');
+  assert(publicLedger.actions.length === 1, 'public ledger did not expose public action');
+  assert(publicLedger.actions[0].delta?.zonePressure > 0, 'public ledger did not expose action delta');
+
+  const sessionLedger = await readJson('/api/world/me/ledger', sessionId);
+  assert(sessionLedger.actions.length === 1, 'session ledger did not expose own action');
+  assert(sessionLedger.actions[0].chronicleEventIds.length >= 1, 'session ledger did not link chronicle events');
+
   const creator = await readJson('/api/creator/overview');
   assert(creator.ledger.tick === 1, 'creator overview did not expose current tick');
+  assert(creator.ledger.actionCount === 1, 'creator overview did not count action ledger');
+  assert(creator.ledger.publicActionCount === 1, 'creator overview did not count public action ledger');
+  assert(creator.recentActions.length === 1, 'creator overview did not expose recent actions');
   assert(creator.sessions.total === 1, 'creator overview did not count active session');
   assert(creator.pressureLeaders.length > 0, 'creator overview did not expose pressure leaders');
   assert(creator.consequenceSummary.publicCount >= 1, 'creator overview did not expose consequence summary');
 
   const admin = await readJson('/api/admin/world');
   assert(admin.sessions.length === 1, 'admin world did not expose the test session');
+  assert(admin.ledger.length === 1, 'admin world did not expose the action ledger');
   assert(admin.snapshots.length === 1, 'world snapshot was not recorded');
 
   console.log('Hollow Mark API check passed');

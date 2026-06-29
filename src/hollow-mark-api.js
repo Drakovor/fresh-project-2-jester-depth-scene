@@ -81,6 +81,7 @@ function normalizeRemotePayload(payload) {
     selectedZoneState: payload.selectedZoneState ?? null,
     moveForecast: payload.moveForecast ?? null,
     chronicle: payload.chronicle ?? [],
+    ledger: payload.ledger ?? [],
     consequenceSummary: payload.consequenceSummary ?? null,
     serverTime: payload.serverTime ?? '',
     selectedZone: payload.selectedZone ?? 'threshold-floor',

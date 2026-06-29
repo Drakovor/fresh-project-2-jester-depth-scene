@@ -345,6 +345,7 @@ function renderWorldSurface() {
   const summary = appState.publicWorld?.summary ?? getPlayableSummary(hollowState.world);
   const zones = appState.publicWorld?.zones ?? describeWorldZones(hollowState.world);
   const chronicle = getChronicleEvents();
+  const ledgerActions = getLedgerActions();
   const creator = appState.creatorOverview;
   const consequenceSummary = appState.publicWorld?.consequenceSummary ?? creator?.consequenceSummary ?? null;
 
@@ -358,9 +359,9 @@ function renderWorldSurface() {
       </div>
 
       <div class="surface-body">
-        ${appState.activeView === 'world' ? renderWorldView(summary, zones, consequenceSummary) : ''}
-        ${appState.activeView === 'chronicle' ? renderChronicleView(chronicle) : ''}
-        ${appState.activeView === 'creator' ? renderCreatorView(creator, summary, zones, consequenceSummary) : ''}
+        ${appState.activeView === 'world' ? renderWorldView(summary, zones, consequenceSummary, ledgerActions) : ''}
+        ${appState.activeView === 'chronicle' ? renderChronicleView(chronicle, ledgerActions) : ''}
+        ${appState.activeView === 'creator' ? renderCreatorView(creator, summary, zones, consequenceSummary, ledgerActions) : ''}
       </div>
     </section>
   `;
@@ -374,7 +375,7 @@ function renderSurfaceTab(view, label) {
   `;
 }
 
-function renderWorldView(summary, zones, consequenceSummary) {
+function renderWorldView(summary, zones, consequenceSummary, ledgerActions) {
   const hotZones = zones
     .filter((zone) => summary.hotZones.includes(zone.id))
     .slice(0, 2);
@@ -391,8 +392,8 @@ function renderWorldView(summary, zones, consequenceSummary) {
         ${renderSurfaceMetric('Fracture', summary.pulse.fracture)}
       </div>
       <div class="surface-ledger">
-        <span>Traces</span>
-        <b>${summary.visibleTraceCount ?? 0}</b>
+        <span>Memory</span>
+        <b>${ledgerActions.length}</b>
         <i>${escapeText(appState.remoteStatus)}</i>
       </div>
       <div class="surface-zone-stack">
@@ -403,7 +404,7 @@ function renderWorldView(summary, zones, consequenceSummary) {
   `;
 }
 
-function renderChronicleView(events) {
+function renderChronicleView(events, ledgerActions) {
   return `
     <div class="surface-pane chronicle-pane">
       <div class="surface-head">
@@ -419,19 +420,22 @@ function renderChronicleView(events) {
           </article>
         `).join('')}
       </div>
+      ${renderActionLedger(ledgerActions.slice(0, 4), 'Memory')}
     </div>
   `;
 }
 
-function renderCreatorView(creator, summary, zones, consequenceSummary) {
+function renderCreatorView(creator, summary, zones, consequenceSummary, fallbackLedgerActions) {
   const ledger = creator?.ledger ?? {
     tick: summary.tick,
     visibleTraceCount: summary.visibleTraceCount,
     chronicleCount: getChronicleEvents().length,
+    actionCount: fallbackLedgerActions.length,
     snapshotCount: 0,
   };
   const pressureLeaders = creator?.pressureLeaders ?? zones.slice(0, 3);
   const sessions = creator?.sessions ?? { total: 0, driveCounts: {}, activeMasks: [] };
+  const recentActions = creator?.recentActions ?? fallbackLedgerActions;
 
   return `
     <div class="surface-pane creator-pane">
@@ -442,7 +446,7 @@ function renderCreatorView(creator, summary, zones, consequenceSummary) {
       <div class="creator-grid">
         <div><span>Sessions</span><b>${sessions.total}</b></div>
         <div><span>Chronicle</span><b>${ledger.chronicleCount}</b></div>
-        <div><span>Snapshots</span><b>${ledger.snapshotCount}</b></div>
+        <div><span>Actions</span><b>${ledger.actionCount ?? recentActions.length}</b></div>
       </div>
       <div class="surface-zone-stack">
         ${pressureLeaders.map((zone) => renderZoneRow(zone)).join('')}
@@ -453,6 +457,25 @@ function renderCreatorView(creator, summary, zones, consequenceSummary) {
         `).join('')}
       </div>
       ${renderSignalGrid(creator?.consequenceSummary ?? consequenceSummary)}
+      ${renderActionLedger(recentActions.slice(0, 5), 'Recent')}
+    </div>
+  `;
+}
+
+function renderActionLedger(actions, label) {
+  return `
+    <div class="action-ledger">
+      <div class="ledger-head">
+        <span class="surface-kicker">${escapeText(label)}</span>
+        <b>${actions.length}</b>
+      </div>
+      ${actions.length === 0 ? '<p class="surface-empty">No action memory yet.</p>' : actions.map((action) => `
+        <article class="ledger-row" data-severity="${escapeText(action.severity ?? 'quiet')}">
+          <span>${escapeText(action.moveLabel ?? action.moveId ?? 'Move')}</span>
+          <b>${escapeText(action.zoneLabel ?? action.zoneId ?? 'Zone')}</b>
+          <small>${escapeText(formatLedgerMeta(action))}</small>
+        </article>
+      `).join('')}
     </div>
   `;
 }
@@ -747,6 +770,7 @@ function applyRemoteSurfaceState(remoteState) {
     summary: remoteState.summary ?? getPlayableSummary(remoteState.world),
     zones: remoteState.zoneLoom ?? describeWorldZones(remoteState.world),
     chronicle: remoteState.chronicle ?? [],
+    ledger: remoteState.ledger ?? appState.publicWorld?.ledger ?? [],
     consequenceSummary: remoteState.consequenceSummary ?? appState.publicWorld?.consequenceSummary ?? null,
     serverTime: remoteState.serverTime ?? '',
   };
@@ -830,6 +854,35 @@ function getChronicleEvents() {
     zoneId: entry.zoneId,
     createdAt: entry.at,
   }));
+}
+
+function getLedgerActions() {
+  const publicLedger = appState.publicWorld?.ledger ?? [];
+  if (publicLedger.length > 0) return publicLedger;
+
+  const creatorLedger = appState.creatorOverview?.recentActions ?? [];
+  if (creatorLedger.length > 0) return creatorLedger;
+
+  return hollowState.world.actionLog.slice(-8).reverse().map((entry) => ({
+    id: entry.traceId,
+    tick: entry.tick,
+    createdAt: entry.at,
+    moveId: entry.moveId,
+    moveLabel: entry.moveId,
+    zoneId: entry.zoneId,
+    zoneLabel: entry.zoneId,
+    severity: 'local',
+    after: {
+      zoneState: 'local',
+    },
+    consequenceTypes: ['local_trace'],
+  }));
+}
+
+function formatLedgerMeta(action) {
+  const state = action.after?.zoneState ?? action.after?.zone?.state ?? 'recorded';
+  const type = action.consequenceTypes?.[0] ?? action.severity ?? 'trace';
+  return `${type} / ${state} / tick ${action.tick ?? 0}`;
 }
 
 function formatEventLine(event) {

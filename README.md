@@ -35,7 +35,7 @@ npm run api:check
 npm run visual:check
 ```
 
-The local API stores Masks, world state, traces, Chronicle events, and snapshots in `server/data/hollow-mark-store.json` (ignored by git). The frontend uses the API on `127.0.0.1:8787` when available and falls back to local browser state on GitHub Pages until a hosted backend is added.
+The local API stores Masks, world state, traces, Chronicle events, action memory, and snapshots in `server/data/hollow-mark-store.json` (ignored by git). The frontend uses the API on `127.0.0.1:8787` when available and falls back to local browser state on GitHub Pages until a hosted backend is added.
 
 The visual check renders desktop, mobile portrait, and tablet portrait screenshots into `tmp/`, records motion/anchor/camera/clarity metrics, verifies the app shell, and fails if a quality gate regresses.
 

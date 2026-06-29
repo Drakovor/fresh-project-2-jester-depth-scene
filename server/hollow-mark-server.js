@@ -77,6 +77,7 @@ async function routeApi(req, res, url) {
       modelVersion: HOLLOW_MARK_MODEL_VERSION,
       worldTick: store.world.tick,
       chronicleCount: store.chronicle.length,
+      ledgerCount: store.ledger.length,
       serverTime: new Date().toISOString(),
     });
     return;
@@ -186,7 +187,8 @@ async function routeApi(req, res, url) {
     session.selectedMove = moveId;
     session.lastTrace = result.trace;
     session.updatedAt = now;
-    appendChronicle(store, session, result.trace, now, beforeMove);
+    const chronicleEvents = appendChronicle(store, session, result.trace, now, beforeMove);
+    appendLedger(store, session, result.trace, now, beforeMove, chronicleEvents);
     appendSnapshot(store, now);
     await persistStore(store);
     sendJson(res, 200, createSessionPayload(store, session), sessionHeader(session.id));
@@ -205,11 +207,36 @@ async function routeApi(req, res, url) {
     return;
   }
 
+  if (url.pathname === '/api/world/me/ledger' && req.method === 'GET') {
+    const store = await readStore();
+    const session = ensureSession(req, res, store);
+    await persistStore(store);
+    const actions = createSessionLedger(store, session.id);
+    sendJson(res, 200, {
+      actions,
+      count: actions.length,
+      tick: store.world.tick,
+    }, sessionHeader(session.id));
+    return;
+  }
+
   if (url.pathname === '/api/chronicle/public' && req.method === 'GET') {
     const store = await readStore();
     sendJson(res, 200, {
       events: store.chronicle.filter((event) => event.publicVisibility).slice(-50).reverse(),
       count: store.chronicle.length,
+      tick: store.world.tick,
+    });
+    return;
+  }
+
+  if (url.pathname === '/api/ledger/public' && req.method === 'GET') {
+    const store = await readStore();
+    const actions = createPublicLedger(store);
+    sendJson(res, 200, {
+      actions,
+      count: actions.length,
+      totalCount: store.ledger.length,
       tick: store.world.tick,
     });
     return;
@@ -235,6 +262,7 @@ async function routeApi(req, res, url) {
         updatedAt: session.updatedAt,
       })),
       chronicle: store.chronicle.slice(-80).reverse(),
+      ledger: createCreatorLedger(store).slice(0, 80),
       snapshots: store.snapshots.slice(-30).reverse(),
       note: 'Local creator view. Add auth before public deployment.',
     });
@@ -309,6 +337,7 @@ function createEmptyStore() {
     world: createWorldState(),
     sessions: {},
     chronicle: [],
+    ledger: [],
     snapshots: [],
   };
 }
@@ -323,6 +352,7 @@ function normalizeStore(candidate) {
     ...candidate,
     sessions: normalizeSessions(candidate.sessions),
     chronicle: Array.isArray(candidate.chronicle) ? candidate.chronicle : [],
+    ledger: Array.isArray(candidate.ledger) ? candidate.ledger : [],
     snapshots: Array.isArray(candidate.snapshots) ? candidate.snapshots : [],
   };
 }
@@ -406,6 +436,7 @@ function createSessionPayload(store, session) {
     moveForecast,
     lastTrace: session.lastTrace,
     chronicle: store.chronicle.filter((event) => event.publicVisibility).slice(-20).reverse(),
+    ledger: createSessionLedger(store, session.id).slice(0, 20),
     consequenceSummary: createConsequenceSummary(store),
     serverTime: new Date().toISOString(),
   };
@@ -418,6 +449,7 @@ function createPublicWorldPayload(store) {
     summary: getPlayableSummary(store.world),
     zones: describeWorldZones(store.world),
     chronicle: store.chronicle.filter((event) => event.publicVisibility).slice(-20).reverse(),
+    ledger: createPublicLedger(store).slice(0, 20),
     consequenceSummary: createConsequenceSummary(store),
     snapshots: store.snapshots.slice(-10).reverse(),
     serverTime: new Date().toISOString(),
@@ -464,8 +496,11 @@ function createCreatorOverviewPayload(store) {
       tick: store.world.tick,
       visibleTraceCount,
       chronicleCount: store.chronicle.length,
+      actionCount: store.ledger.length,
+      publicActionCount: store.ledger.filter((action) => action.publicVisibility).length,
       snapshotCount: store.snapshots.length,
     },
+    recentActions: createCreatorLedger(store).slice(0, 8),
     serverTime: new Date().toISOString(),
   };
 }
@@ -587,6 +622,7 @@ function appendChronicle(store, session, trace, now, beforeMove) {
 
   store.chronicle.push(...events);
   if (store.chronicle.length > 180) store.chronicle = store.chronicle.slice(-180);
+  return events;
 }
 
 function createChronicleEvent({
@@ -618,6 +654,192 @@ function createChronicleEvent({
     pulse,
     zoneState,
   };
+}
+
+function appendLedger(store, session, trace, now, beforeMove, chronicleEvents) {
+  const afterSummary = getPlayableSummary(store.world);
+  const afterZone = describeWorldZones(store.world).find((candidate) => candidate.id === trace.zone);
+  const afterMaskShape = describeMaskShape(session.mask);
+  const move = MOVES.find((candidate) => candidate.id === trace.move);
+  const zone = ZONES.find((candidate) => candidate.id === trace.zone);
+  const publicVisibility = chronicleEvents.some((event) => event.publicVisibility);
+
+  const entry = {
+    id: `ledger_${randomUUID()}`,
+    tick: store.world.tick,
+    createdAt: now,
+    sessionId: session.id,
+    maskId: session.mask.id,
+    maskRef: createMaskRef(session.mask),
+    drive: session.mask.drive,
+    zoneId: trace.zone,
+    zoneLabel: zone?.label ?? trace.zone,
+    moveId: trace.move,
+    moveLabel: move?.label ?? trace.move,
+    publicVisibility,
+    consequenceTypes: chronicleEvents.map((event) => event.eventType),
+    consequenceSeverities: chronicleEvents.map((event) => event.severity),
+    chronicleEventIds: chronicleEvents.map((event) => event.id),
+    trace: projectTraceForLedger(trace),
+    before: {
+      pulse: roundPulse(beforeMove?.summary?.pulse),
+      zone: reduceZoneState(beforeMove?.zone),
+      maskShape: beforeMove?.maskShape ?? null,
+    },
+    after: {
+      pulse: roundPulse(afterSummary.pulse),
+      zone: reduceZoneState(afterZone),
+      maskShape: afterMaskShape,
+    },
+    delta: createLedgerDelta(beforeMove, afterSummary, afterZone),
+    summaryLine: `${session.mask.drive} / ${move?.label ?? trace.move} / ${zone?.label ?? trace.zone}`,
+  };
+
+  store.ledger.push(entry);
+  if (store.ledger.length > 320) store.ledger = store.ledger.slice(-320);
+  return entry;
+}
+
+function createPublicLedger(store) {
+  return store.ledger
+    .filter((action) => action.publicVisibility)
+    .slice(-60)
+    .reverse()
+    .map(projectPublicLedgerAction);
+}
+
+function createSessionLedger(store, sessionId) {
+  return store.ledger
+    .filter((action) => action.sessionId === sessionId)
+    .slice(-60)
+    .reverse()
+    .map(projectSessionLedgerAction);
+}
+
+function createCreatorLedger(store) {
+  return store.ledger
+    .slice(-60)
+    .reverse()
+    .map(projectCreatorLedgerAction);
+}
+
+function projectPublicLedgerAction(action) {
+  return {
+    id: action.id,
+    tick: action.tick,
+    createdAt: action.createdAt,
+    maskRef: action.maskRef,
+    drive: action.drive,
+    zoneId: action.zoneId,
+    zoneLabel: action.zoneLabel,
+    moveId: action.moveId,
+    moveLabel: action.moveLabel,
+    publicVisibility: action.publicVisibility,
+    severity: chooseLedgerSeverity(action),
+    consequenceTypes: action.consequenceTypes,
+    before: {
+      pulse: action.before?.pulse ?? null,
+      zoneState: action.before?.zone?.state ?? null,
+      zoneIntensity: action.before?.zone?.intensity ?? null,
+    },
+    after: {
+      pulse: action.after?.pulse ?? null,
+      zoneState: action.after?.zone?.state ?? null,
+      zoneIntensity: action.after?.zone?.intensity ?? null,
+      maskShape: action.after?.maskShape ?? null,
+    },
+    delta: action.delta,
+    trace: {
+      visibility: action.trace?.visibility ?? 0,
+      fracture: action.trace?.fracture ?? 0,
+    },
+    summaryLine: action.summaryLine,
+  };
+}
+
+function projectSessionLedgerAction(action) {
+  return {
+    ...projectPublicLedgerAction(action),
+    chronicleEventIds: action.chronicleEventIds,
+    trace: action.trace,
+  };
+}
+
+function projectCreatorLedgerAction(action) {
+  return {
+    ...projectSessionLedgerAction(action),
+    sessionId: action.sessionId,
+    maskId: action.maskId,
+  };
+}
+
+function projectTraceForLedger(trace) {
+  return {
+    id: trace.id,
+    at: trace.at,
+    move: trace.move,
+    zone: trace.zone,
+    drive: trace.drive,
+    pressure: round3(trace.pressure),
+    clarity: round3(trace.clarity),
+    visibility: round3(trace.visibility),
+    fracture: round3(trace.fracture),
+  };
+}
+
+function createLedgerDelta(beforeMove, afterSummary, afterZone) {
+  const beforePulse = beforeMove?.summary?.pulse ?? {};
+  const beforeZone = beforeMove?.zone ?? {};
+
+  return {
+    pulsePressure: round3((afterSummary.pulse.pressure ?? 0) - (beforePulse.pressure ?? 0)),
+    pulseClarity: round3((afterSummary.pulse.clarity ?? 0) - (beforePulse.clarity ?? 0)),
+    pulseFracture: round3((afterSummary.pulse.fracture ?? 0) - (beforePulse.fracture ?? 0)),
+    zonePressure: round3((afterZone?.pressure ?? 0) - (beforeZone.pressure ?? 0)),
+    zoneClarity: round3((afterZone?.clarity ?? 0) - (beforeZone.clarity ?? 0)),
+    zoneFracture: round3((afterZone?.fracture ?? 0) - (beforeZone.fracture ?? 0)),
+  };
+}
+
+function reduceZoneState(zone) {
+  if (!zone) return null;
+  return {
+    id: zone.id,
+    label: zone.label,
+    state: zone.state,
+    pressure: round3(zone.pressure),
+    clarity: round3(zone.clarity),
+    fracture: round3(zone.fracture),
+    intensity: round3(zone.intensity),
+    visibleTraceCount: zone.visibleTraceCount,
+  };
+}
+
+function roundPulse(pulse = {}) {
+  return {
+    pressure: round3(pulse.pressure ?? 0),
+    clarity: round3(pulse.clarity ?? 0),
+    fracture: round3(pulse.fracture ?? 0),
+  };
+}
+
+function createMaskRef(mask) {
+  const compact = String(mask.id ?? '')
+    .replace(/[^a-zA-Z0-9]/g, '')
+    .slice(-6) || 'local';
+  return `${mask.drive}-${compact}`;
+}
+
+function chooseLedgerSeverity(action) {
+  const severities = action.consequenceSeverities ?? [];
+  if (severities.includes('critical')) return 'critical';
+  if (severities.includes('sharp')) return 'sharp';
+  if (severities.includes('signal')) return 'signal';
+  return 'quiet';
+}
+
+function round3(value) {
+  return Math.round((Number(value) || 0) * 1000) / 1000;
 }
 
 function createConsequenceSummary(store) {
