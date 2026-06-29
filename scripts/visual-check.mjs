@@ -344,6 +344,9 @@ function evaluateQualityGates(report) {
       assertGate(failures, sample.volumetricDepthAxis === sample.cameraAxis, `${name}/${sample.sample}: volumetric depth axis ${sample.volumetricDepthAxis} does not match camera ${sample.cameraAxis}`);
       assertGate(failures, sample.thresholdDepthMode === 'private-threshold-depth-lens', `${name}/${sample.sample}: threshold depth mode is ${sample.thresholdDepthMode}`);
       assertGate(failures, sample.thresholdDepthAxis === sample.cameraAxis, `${name}/${sample.sample}: threshold depth axis ${sample.thresholdDepthAxis} does not match camera ${sample.cameraAxis}`);
+      assertGate(failures, sample.thresholdPressureMode === 'peripheral-threshold-pressure', `${name}/${sample.sample}: threshold pressure mode is ${sample.thresholdPressureMode}`);
+      assertGate(failures, sample.thresholdPressureAxis === sample.cameraAxis, `${name}/${sample.sample}: threshold pressure axis ${sample.thresholdPressureAxis} does not match camera ${sample.cameraAxis}`);
+      assertGate(failures, sample.thresholdPressureAlpha >= 0.27 && sample.thresholdPressureAlpha <= 0.42, `${name}/${sample.sample}: threshold pressure alpha out of range (${sample.thresholdPressureAlpha})`);
       assertGate(failures, sample.presenceTraceMode === 'non-ui-directional-presence-memory', `${name}/${sample.sample}: presence trace mode is ${sample.presenceTraceMode}`);
       assertGate(failures, sample.presenceTraceAxis === sample.cameraAxis, `${name}/${sample.sample}: presence trace axis ${sample.presenceTraceAxis} does not match camera ${sample.cameraAxis}`);
       assertGate(failures, sample.presenceTracePeak >= 0 && sample.presenceTracePeak <= 0.72, `${name}/${sample.sample}: presence trace peak out of range (${sample.presenceTracePeak})`);
@@ -515,6 +518,9 @@ async function readSceneState(page, sample) {
       volumetricDepthAxis: document.body.dataset.volumetricDepthAxis,
       thresholdDepthMode: document.body.dataset.thresholdDepthMode,
       thresholdDepthAxis: document.body.dataset.thresholdDepthAxis,
+      thresholdPressureMode: document.body.dataset.thresholdPressureMode,
+      thresholdPressureAxis: document.body.dataset.thresholdPressureAxis,
+      thresholdPressureAlpha: Number(document.body.dataset.thresholdPressureAlpha),
       presenceTraceMode: document.body.dataset.presenceTraceMode,
       presenceTraceAxis: document.body.dataset.presenceTraceAxis,
       presenceTracePeak: Number(document.body.dataset.presenceTracePeak),

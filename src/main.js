@@ -201,6 +201,9 @@ midLayer.addChild(focusAperture.graphics);
 const thresholdLens = makeThresholdLensSystem();
 midLayer.addChild(thresholdLens.graphics);
 
+const thresholdPressure = makeThresholdPressureSystem();
+midLayer.addChild(thresholdPressure.graphics);
+
 const presenceTrace = makePresenceTraceSystem();
 midLayer.addChild(presenceTrace.graphics);
 midLayer.addChild(centralGlow);
@@ -475,6 +478,7 @@ function animateScene(dt) {
   volumetricDepth.update(t, w, h, lookX, lookY, orbit.axis, breathe, slowPulse);
   focusAperture.update(t, w, h, lookX, lookY, orbit.axis, breathe, slowPulse);
   thresholdLens.update(t, w, h, lookX, lookY, orbit.axis, breathe, slowPulse);
+  thresholdPressure.update(t, w, h, lookX, lookY, orbit.axis, breathe, slowPulse);
   presenceTrace.update(t, w, h, lookX, lookY, orbit.axis, breathe, slowPulse);
   edgeGrade.alpha = 0.62 + breathe * 0.05;
   clarityLane.position.set(w * 0.5 + lookX * w * 0.01, h * 0.5 + lookY * h * 0.006);
@@ -546,6 +550,9 @@ function animateScene(dt) {
   document.body.dataset.volumetricDepthAxis = orbit.axis;
   document.body.dataset.thresholdDepthMode = 'private-threshold-depth-lens';
   document.body.dataset.thresholdDepthAxis = orbit.axis;
+  document.body.dataset.thresholdPressureMode = 'peripheral-threshold-pressure';
+  document.body.dataset.thresholdPressureAxis = orbit.axis;
+  document.body.dataset.thresholdPressureAlpha = thresholdPressure.graphics.alpha.toFixed(3);
   document.body.dataset.presenceTraceMode = 'non-ui-directional-presence-memory';
   document.body.dataset.presenceTraceAxis = orbit.axis;
   document.body.dataset.presenceTracePeak = presenceTrace.peak.toFixed(3);
@@ -1412,6 +1419,100 @@ function drawThresholdLens(g, panes, sparks, t, w, h, lookX, lookY, axis, breath
     g.beginFill(spark.color, alpha);
     g.drawCircle(x, y, spark.size * (0.6 + progress * 0.7));
     g.endFill();
+  }
+}
+
+function makeThresholdPressureSystem() {
+  const graphics = new Graphics();
+  graphics.blendMode = BLEND_MODES.ADD;
+  const rng = createRng('peripheral-threshold-pressure');
+  const sideThreads = [];
+  const floorCuts = [];
+
+  for (let i = 0; i < 30; i += 1) {
+    sideThreads.push({
+      side: i % 2 === 0 ? -1 : 1,
+      lane: randRange(rng, 0.06, 0.25),
+      y: randRange(rng, 0.13, 0.78),
+      reach: randRange(rng, 0.09, 0.28),
+      phase: randRange(rng, 0, Math.PI * 2),
+      depth: randRange(rng, 0.16, 1),
+      color: i % 5 === 0 ? 0xbcffb0 : i % 3 === 0 ? 0xffa25d : 0x9d63e5,
+    });
+  }
+
+  for (let i = 0; i < 18; i += 1) {
+    floorCuts.push({
+      side: i % 2 === 0 ? -1 : 1,
+      angle: randRange(rng, -0.9, 0.9),
+      radius: randRange(rng, 0.72, 1.22),
+      phase: randRange(rng, 0, Math.PI * 2),
+      length: randRange(rng, 0.022, 0.07),
+      color: i % 4 === 0 ? 0xbcffb0 : i % 4 === 1 ? 0xffa25d : 0x9d63e5,
+    });
+  }
+
+  return {
+    graphics,
+    update(t, w, h, lookX, lookY, axis, breathe, slowPulse) {
+      drawThresholdPressure(graphics, sideThreads, floorCuts, t, w, h, lookX, lookY, axis, breathe, slowPulse);
+    },
+  };
+}
+
+function drawThresholdPressure(g, sideThreads, floorCuts, t, w, h, lookX, lookY, axis, breathe, slowPulse) {
+  const floorX = w * ANCHOR.floorCircleX;
+  const floorY = h * ANCHOR.floorCircleY;
+  const vanishX = w * (0.53 - lookX * 0.018);
+  const vanishY = h * (0.47 + lookY * 0.016);
+  const sideStrength = axis === 'x' ? Math.min(1, Math.abs(lookX) / CAMERA.orbitLimitX) : 0;
+  const verticalStrength = axis === 'y' ? Math.min(1, Math.abs(lookY) / CAMERA.orbitLimitY) : 0;
+  const active = Math.max(sideStrength, verticalStrength);
+  const pulse = 0.5 + Math.sin(t * 0.31) * 0.5;
+
+  g.clear();
+  g.alpha = 0.28 + breathe * 0.08 + active * 0.05;
+
+  for (const thread of sideThreads) {
+    const reveal = axis === 'x'
+      ? clamp(0.18 + thread.side * lookX / CAMERA.orbitLimitX, 0.08, 1)
+      : 0.24 + verticalStrength * 0.16;
+    const wave = Math.max(0, Math.sin(t * (0.24 + thread.depth * 0.18) + thread.phase));
+    const edgeX = thread.side < 0 ? w * thread.lane : w * (1 - thread.lane);
+    const y0 = h * thread.y + lookY * h * (0.004 + thread.depth * 0.012);
+    const x1 = vanishX + thread.side * w * (0.018 + thread.reach * 0.18) + lookX * w * 0.006;
+    const y1 = vanishY + h * (thread.y - 0.5) * 0.26 + lookY * h * 0.012;
+    const controlX = edgeX + thread.side * w * (thread.reach * (0.48 + reveal * 0.22));
+    const controlY = (y0 + y1) * 0.5 + Math.sin(t * 0.11 + thread.phase) * h * 0.01;
+    const alpha = (0.012 + reveal * 0.026 + wave * 0.026 + slowPulse * 0.008) * (thread.color === 0xbcffb0 ? 0.62 : 1);
+
+    g.lineStyle(0.55 + thread.depth * 1.08 + active * 0.42, thread.color, alpha);
+    g.moveTo(edgeX, y0);
+    g.bezierCurveTo(controlX, controlY, controlX * 0.64 + x1 * 0.36, y1 + h * 0.02, x1, y1);
+  }
+
+  for (let i = 0; i < 4; i += 1) {
+    const progress = i / 3;
+    const rx = w * (0.145 + progress * 0.075 + active * 0.01 + pulse * 0.004);
+    const ry = h * (0.027 + progress * 0.018 + verticalStrength * 0.006);
+    const alpha = 0.014 + (1 - progress) * 0.018 + active * 0.012;
+    const y = floorY - h * (0.006 + progress * 0.05) + lookY * h * 0.005;
+
+    g.lineStyle(0.6 + progress * 0.6, progress % 2 === 0 ? 0xffa25d : 0x9d63e5, alpha);
+    g.drawEllipse(floorX + lookX * w * 0.004, y, rx, ry);
+  }
+
+  for (const cut of floorCuts) {
+    const angle = cut.angle + lookX * 0.16 + Math.sin(t * 0.08 + cut.phase) * 0.025;
+    const sideBias = cut.side * (0.16 + sideStrength * 0.04);
+    const x = floorX + Math.sin(angle) * w * (0.11 + cut.radius * 0.075) + sideBias * w * 0.18;
+    const y = floorY - h * (0.016 + Math.cos(angle) * 0.035 + verticalStrength * 0.012) + lookY * h * 0.006;
+    const len = w * cut.length * (0.6 + active * 0.45);
+    const alpha = 0.014 + Math.max(0, Math.sin(t * 0.38 + cut.phase)) * 0.034 + active * 0.01;
+
+    g.lineStyle(0.55 + active * 0.75, cut.color, alpha * (cut.color === 0xbcffb0 ? 0.66 : 1));
+    g.moveTo(x - len, y);
+    g.lineTo(x + len * 0.8, y + h * 0.004);
   }
 }
 

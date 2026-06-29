@@ -39,6 +39,7 @@ No old assets are required. If those files are missing, the app renders a proced
 - The peripheral depth focus aperture reinforces the sensation of entering the space while keeping the central character/floor lane readable.
 - Axis-bound volumetric slit haze adds depth in the room air without becoming stage lighting or covering the character lane.
 - The private threshold lens adds fine floor/air depth around the central circle only, reinforcing the feeling of entering the room without adding sacred, stage, or royal symbols.
+- Peripheral threshold pressure adds subtle responsive tension in side walls and floor cuts, keeping the center clear while making the room feel awake.
 - Non-UI directional presence memory may leave subtle traces from exploration, but it must read as the room remembering movement, never as badges, rewards, quests, or streamer overlay UI.
 - Cinematic negative fill may darken the room immediately behind the subject to sculpt clarity, but it must stay behind her and never become a visible black halo.
 - The scene-anchored contact reflection stays subtle and floor-bound so the character feels grounded without becoming a duplicated figure.
