@@ -347,6 +347,9 @@ function evaluateQualityGates(report) {
       assertGate(failures, sample.thresholdPressureMode === 'peripheral-threshold-pressure', `${name}/${sample.sample}: threshold pressure mode is ${sample.thresholdPressureMode}`);
       assertGate(failures, sample.thresholdPressureAxis === sample.cameraAxis, `${name}/${sample.sample}: threshold pressure axis ${sample.thresholdPressureAxis} does not match camera ${sample.cameraAxis}`);
       assertGate(failures, sample.thresholdPressureAlpha >= 0.27 && sample.thresholdPressureAlpha <= 0.42, `${name}/${sample.sample}: threshold pressure alpha out of range (${sample.thresholdPressureAlpha})`);
+      assertGate(failures, sample.sideSeparationMode === 'cinematic-side-depth-separation', `${name}/${sample.sample}: side separation mode is ${sample.sideSeparationMode}`);
+      assertGate(failures, sample.sideSeparationAxis === sample.cameraAxis, `${name}/${sample.sample}: side separation axis ${sample.sideSeparationAxis} does not match camera ${sample.cameraAxis}`);
+      assertGate(failures, sample.sideSeparationAlpha >= 0.13 && sample.sideSeparationAlpha <= 0.24, `${name}/${sample.sample}: side separation alpha out of range (${sample.sideSeparationAlpha})`);
       assertGate(failures, sample.presenceTraceMode === 'non-ui-directional-presence-memory', `${name}/${sample.sample}: presence trace mode is ${sample.presenceTraceMode}`);
       assertGate(failures, sample.presenceTraceAxis === sample.cameraAxis, `${name}/${sample.sample}: presence trace axis ${sample.presenceTraceAxis} does not match camera ${sample.cameraAxis}`);
       assertGate(failures, sample.presenceTracePeak >= 0 && sample.presenceTracePeak <= 0.72, `${name}/${sample.sample}: presence trace peak out of range (${sample.presenceTracePeak})`);
@@ -521,6 +524,9 @@ async function readSceneState(page, sample) {
       thresholdPressureMode: document.body.dataset.thresholdPressureMode,
       thresholdPressureAxis: document.body.dataset.thresholdPressureAxis,
       thresholdPressureAlpha: Number(document.body.dataset.thresholdPressureAlpha),
+      sideSeparationMode: document.body.dataset.sideSeparationMode,
+      sideSeparationAxis: document.body.dataset.sideSeparationAxis,
+      sideSeparationAlpha: Number(document.body.dataset.sideSeparationAlpha),
       presenceTraceMode: document.body.dataset.presenceTraceMode,
       presenceTraceAxis: document.body.dataset.presenceTraceAxis,
       presenceTracePeak: Number(document.body.dataset.presenceTracePeak),

@@ -252,6 +252,9 @@ cinematicDepthFrame.anchor.set(0.5);
 cinematicDepthFrame.alpha = 0.46;
 foregroundLayer.addChild(cinematicDepthFrame);
 
+const sideSeparation = makeSideSeparationSystem();
+foregroundLayer.addChild(sideSeparation.container);
+
 const rays = makeLightRays(10);
 midLayer.addChild(rays);
 
@@ -522,6 +525,7 @@ function animateScene(dt) {
   cinematicDepthFrame.alpha = 0.36 + slowPulse * 0.06 + Math.abs(lookX) * 0.026 + portraitFactor * 0.05;
   cinematicDepthFrame.position.set(w * 0.5 + lookX * w * 0.016, h * 0.5 + lookY * h * 0.012);
   cinematicDepthFrame.scale.set(cinematicDepthFrame.baseScale * (1.002 + Math.abs(lookX) * 0.01));
+  sideSeparation.update(t, w, h, lookX, lookY, orbit.axis, breathe, slowPulse, portraitFactor);
 
   animateParticles(particles, dt, w, h, t);
   animateMirrorMotes(
@@ -553,6 +557,9 @@ function animateScene(dt) {
   document.body.dataset.thresholdPressureMode = 'peripheral-threshold-pressure';
   document.body.dataset.thresholdPressureAxis = orbit.axis;
   document.body.dataset.thresholdPressureAlpha = thresholdPressure.graphics.alpha.toFixed(3);
+  document.body.dataset.sideSeparationMode = 'cinematic-side-depth-separation';
+  document.body.dataset.sideSeparationAxis = orbit.axis;
+  document.body.dataset.sideSeparationAlpha = sideSeparation.alpha.toFixed(3);
   document.body.dataset.presenceTraceMode = 'non-ui-directional-presence-memory';
   document.body.dataset.presenceTraceAxis = orbit.axis;
   document.body.dataset.presenceTracePeak = presenceTrace.peak.toFixed(3);
@@ -1514,6 +1521,84 @@ function drawThresholdPressure(g, sideThreads, floorCuts, t, w, h, lookX, lookY,
     g.moveTo(x - len, y);
     g.lineTo(x + len * 0.8, y + h * 0.004);
   }
+}
+
+function makeSideSeparationSystem() {
+  const container = new Container();
+  const shade = new Graphics();
+  const cuts = new Graphics();
+  shade.blendMode = BLEND_MODES.MULTIPLY;
+  cuts.blendMode = BLEND_MODES.ADD;
+  container.addChild(shade, cuts);
+
+  return {
+    container,
+    alpha: 0,
+    update(t, w, h, lookX, lookY, axis, breathe, slowPulse, portraitFactor) {
+      this.alpha = drawSideSeparation(shade, cuts, t, w, h, lookX, lookY, axis, breathe, slowPulse, portraitFactor);
+    },
+  };
+}
+
+function drawSideSeparation(shade, cuts, t, w, h, lookX, lookY, axis, breathe, slowPulse, portraitFactor) {
+  const sideStrength = axis === 'x' ? Math.min(1, Math.abs(lookX) / CAMERA.orbitLimitX) : 0;
+  const verticalStrength = axis === 'y' ? Math.min(1, Math.abs(lookY) / CAMERA.orbitLimitY) : 0;
+  const active = Math.max(sideStrength, verticalStrength);
+  const alpha = clamp(0.145 + breathe * 0.018 + active * 0.026 - portraitFactor * 0.012, 0.13, 0.23);
+  const centerY = h * (0.52 + lookY * 0.01);
+  const planeFill = clamp(0.34 + active * 0.07 - portraitFactor * 0.08, 0.22, 0.42);
+  const innerFill = clamp(0.14 + verticalStrength * 0.04 - portraitFactor * 0.04, 0.08, 0.2);
+
+  shade.clear();
+  shade.alpha = alpha;
+
+  for (const side of [-1, 1]) {
+    const reveal = axis === 'x'
+      ? clamp(side * lookX / CAMERA.orbitLimitX, -0.2, 1)
+      : 0.16 + verticalStrength * 0.14;
+    const edgeX = side < 0 ? -w * 0.08 : w * 1.08;
+    const innerTop = side < 0 ? w * (0.2 + reveal * 0.035) : w * (0.82 - reveal * 0.035);
+    const innerMid = side < 0 ? w * (0.28 + reveal * 0.038) : w * (0.74 - reveal * 0.038);
+    const innerLow = side < 0 ? w * (0.18 + reveal * 0.032) : w * (0.86 - reveal * 0.032);
+
+    shade.beginFill(0x050108, planeFill);
+    shade.drawPolygon([
+      edgeX, -h * 0.08,
+      innerTop + lookX * w * 0.01, h * 0.06,
+      innerMid, centerY + h * 0.1,
+      innerLow + lookX * w * 0.012, h * 1.08,
+      edgeX, h * 1.08,
+    ]);
+    shade.endFill();
+
+    shade.beginFill(0x11051a, innerFill);
+    shade.drawPolygon([
+      edgeX, h * 0.18,
+      innerTop + side * w * 0.045, h * (0.2 + lookY * 0.018),
+      innerMid + side * w * 0.028, h * 0.72,
+      edgeX, h * 0.9,
+    ]);
+    shade.endFill();
+  }
+
+  cuts.clear();
+  cuts.alpha = 0.28 + slowPulse * 0.08 + active * 0.08;
+
+  for (let i = 0; i < 10; i += 1) {
+    const side = i % 2 === 0 ? -1 : 1;
+    const depth = i / 9;
+    const x = side < 0 ? w * (0.13 + depth * 0.08) : w * (0.87 - depth * 0.08);
+    const y = h * (0.16 + depth * 0.58) + Math.sin(t * 0.12 + i) * h * 0.004 + lookY * h * 0.01;
+    const len = w * (0.045 + depth * 0.04 + active * 0.012);
+    const color = i % 3 === 0 ? 0xffa25d : i % 3 === 1 ? 0x9d63e5 : 0xbcffb0;
+    const lineAlpha = (0.018 + active * 0.045 + Math.max(0, Math.sin(t * 0.36 + i)) * 0.022) * (color === 0xbcffb0 ? 0.64 : 1);
+
+    cuts.lineStyle(0.65 + depth * 0.8 + active * 0.35, color, lineAlpha);
+    cuts.moveTo(x, y);
+    cuts.lineTo(x + side * len, y + h * (0.012 - depth * 0.006));
+  }
+
+  return alpha;
 }
 
 function makePresenceTraceSystem() {
