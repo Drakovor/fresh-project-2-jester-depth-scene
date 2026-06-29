@@ -46,6 +46,7 @@ No old assets are required. If those files are missing, the app renders a proced
 - Cinematic negative fill may darken the room immediately behind the subject to sculpt clarity, but it must stay behind her and never become a visible black halo.
 - The scene-anchored contact reflection stays subtle and floor-bound so the character feels grounded without becoming a duplicated figure.
 - Dual-tone rim light may separate the character from the room, but must stay subtle and locked to the same pose/anchor as the character sprite.
+- Pose-locked micro-lustre may add tiny living glints to costume details, but must follow the character pose and remain below visible UI/reward/badge intensity.
 - Ambient particles, cloth strands, haze, sparks, glass marks, living wall/floor signals, and signature floor circuits use named deterministic seeds for a stable premium render.
 - Runtime effects stay around the scene and depth layers instead of becoming a visible UI overlay.
 - Living signals belong to the room language: they should feel like the place is awake, never like carnival lights or streamer badges.

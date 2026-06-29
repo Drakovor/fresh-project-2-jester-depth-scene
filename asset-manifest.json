@@ -18,6 +18,7 @@
     "subject_matte": "A blurred negative-fill matte behind the generated character sculpts premium subject clarity without becoming a black halo or stage spotlight.",
     "contact_reflection": "A subtle mirrored reflection of the generated character texture is compressed into the floor plane and follows the projected foot anchor for premium grounding.",
     "character_rim": "Subtle dual-tone blurred copies of the generated character texture sit behind the main sprite for premium silhouette separation without changing pose or anatomy.",
+    "subject_lustre": "Code-generated pose-locked micro-glints live on the character's costume detail, adding premium motion without UI, reward, badge, or stage-light language.",
     "procedural_quality": "Ambient particles, cloth, haze, sparks, glass marks, living wall/floor signals, and signature floor circuits use named deterministic seeds.",
     "living_signals": "Subtle pistachio/orange/purple room-language marks animate on side structures and the floor anchor, reinforcing an awake private universe without UI, carnival, theater, royal, sacred, or medieval motifs.",
     "cinematic_clarity": "Code-generated foreground occlusion and floor gleam reinforce depth, contact, and premium readability while staying behind the character.",

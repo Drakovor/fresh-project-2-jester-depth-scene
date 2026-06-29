@@ -362,6 +362,8 @@ function evaluateQualityGates(report) {
       assertGate(failures, sample.floorReflectionAlpha >= 0.045 && sample.floorReflectionAlpha <= 0.11, `${name}/${sample.sample}: floor reflection alpha out of range (${sample.floorReflectionAlpha})`);
       assertGate(failures, sample.characterRimMode === 'dual-tone-silhouette-separation', `${name}/${sample.sample}: character rim mode is ${sample.characterRimMode}`);
       assertGate(failures, isAlphaPairInRange(sample.characterRimAlpha, 0.024, 0.072), `${name}/${sample.sample}: character rim alpha out of range (${sample.characterRimAlpha})`);
+      assertGate(failures, sample.subjectLustreMode === 'pose-locked-micro-lustre', `${name}/${sample.sample}: subject lustre mode is ${sample.subjectLustreMode}`);
+      assertGate(failures, sample.subjectLustrePeak >= 0.025 && sample.subjectLustrePeak <= 0.13, `${name}/${sample.sample}: subject lustre peak out of range (${sample.subjectLustrePeak})`);
       assertGate(failures, sample.anchorLayer === 'backgroundLayer', `${name}/${sample.sample}: anchorLayer is ${sample.anchorLayer}`);
       assertGate(failures, sample.canvas?.width === width && sample.canvas?.height === height, `${name}/${sample.sample}: canvas is ${sample.canvas?.width}x${sample.canvas?.height}`);
       assertGate(failures, isFootInside(sample.subjectFoot, width, height), `${name}/${sample.sample}: subjectFoot out of viewport (${sample.subjectFoot})`);
@@ -542,6 +544,8 @@ async function readSceneState(page, sample) {
       floorReflectionAlpha: Number(document.body.dataset.floorReflectionAlpha),
       characterRimMode: document.body.dataset.characterRimMode,
       characterRimAlpha: document.body.dataset.characterRimAlpha,
+      subjectLustreMode: document.body.dataset.subjectLustreMode,
+      subjectLustrePeak: Number(document.body.dataset.subjectLustrePeak),
       subjectFoot: document.body.dataset.subjectFoot,
       anchorLocal: document.body.dataset.anchorLocal,
       anchorLayer: document.body.dataset.anchorLayer,

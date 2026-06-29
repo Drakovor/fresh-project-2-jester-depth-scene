@@ -267,6 +267,9 @@ characterLayer.addChild(eyelids.container);
 const cloth = makeClothMotionSystem();
 characterLayer.addChild(cloth.container);
 
+const subjectLustre = makeSubjectLustreSystem();
+characterLayer.addChild(subjectLustre.container);
+
 const particles = makeParticles();
 for (const particle of particles) {
   fxLayer.addChild(particle.sprite);
@@ -540,6 +543,7 @@ function animateScene(dt) {
   );
   eyelids.update(t, character);
   cloth.update(t, character);
+  subjectLustre.update(t, character, lookX, lookY, breathe, slowPulse);
   document.body.dataset.cameraArc = lookY.toFixed(3);
   document.body.dataset.cameraOrbit = lookX.toFixed(3);
   document.body.dataset.cameraMode = 'constrained-cardinal-arc';
@@ -576,6 +580,8 @@ function animateScene(dt) {
   document.body.dataset.floorReflectionAlpha = floorReflection.alpha.toFixed(3);
   document.body.dataset.characterRimMode = 'dual-tone-silhouette-separation';
   document.body.dataset.characterRimAlpha = `${characterRimWarm.alpha.toFixed(3)},${characterRimCool.alpha.toFixed(3)}`;
+  document.body.dataset.subjectLustreMode = 'pose-locked-micro-lustre';
+  document.body.dataset.subjectLustrePeak = subjectLustre.peak.toFixed(3);
   document.body.dataset.cameraPivot = `${Math.round(focusX)},${Math.round(focusY)}`;
   document.body.dataset.cameraShift = `${Math.round(depth.position.x - focusX)},${Math.round(depth.position.y - focusY)}`;
   document.body.dataset.cameraReveal = `${Math.round(backShift.x)},${Math.round(foreShift.x)}`;
@@ -828,6 +834,7 @@ function layout() {
 
   eyelids.layout(character);
   cloth.layout(character);
+  subjectLustre.layout(character);
 
   document.body.dataset.sceneReady = 'true';
   document.body.dataset.characterPosition = `${Math.round(character.sprite.position.x)},${Math.round(character.sprite.position.y)}`;
@@ -2113,6 +2120,74 @@ function makeClothMotionSystem() {
         g.moveTo(startX, startY);
         g.bezierCurveTo(startX + sway * 0.4, startY + length * 0.35, startX + sway, startY + length * 0.7, startX + sway * 0.5, startY + length);
       }
+    },
+  };
+}
+
+function makeSubjectLustreSystem() {
+  const container = new Container();
+  const graphics = new Graphics();
+  graphics.blendMode = BLEND_MODES.ADD;
+  container.addChild(graphics);
+
+  const accents = [
+    { x: 0.5, y: 0.725, size: 6.8, color: 0xffb46d, phase: 0.1 },
+    { x: 0.462, y: 0.61, size: 5.4, color: 0xbcffb0, phase: 1.8 },
+    { x: 0.545, y: 0.58, size: 5.8, color: 0x9d63e5, phase: 2.6 },
+    { x: 0.49, y: 0.49, size: 4.6, color: 0xffb46d, phase: 4.2 },
+    { x: 0.57, y: 0.405, size: 4.8, color: 0xbcffb0, phase: 5.1 },
+    { x: 0.435, y: 0.36, size: 4.2, color: 0x9d63e5, phase: 3.4 },
+    { x: 0.59, y: 0.235, size: 4.6, color: 0xffb46d, phase: 6.3 },
+    { x: 0.505, y: 0.155, size: 4.2, color: 0xbcffb0, phase: 7.0 },
+  ];
+
+  return {
+    container,
+    peak: 0,
+    layout(layer) {
+      container.position.set(layer.sprite.position.x, layer.sprite.position.y);
+      container.scale.set(layer.sprite.scale.x, layer.sprite.scale.y);
+    },
+    update(t, layer, lookX, lookY, breathe, slowPulse) {
+      const tex = layer.sprite.texture;
+      const cameraTension = Math.min(1, Math.abs(lookX) / CAMERA.orbitLimitX + Math.abs(lookY) / CAMERA.orbitLimitY);
+      let peak = 0;
+
+      container.position.set(layer.sprite.position.x, layer.sprite.position.y);
+      container.scale.set(layer.sprite.scale.x, layer.sprite.scale.y);
+      container.rotation = layer.sprite.rotation;
+      container.alpha = 0.82 + breathe * 0.1;
+      graphics.clear();
+
+      for (const accent of accents) {
+        const x = tex.width * accent.x + lookX * 1.2;
+        const y = -tex.height * accent.y + lookY * 0.8;
+        const blink = Math.max(0, Math.sin(t * 0.58 + accent.phase));
+        const alpha = (0.026 + blink * 0.065 + slowPulse * 0.012 + cameraTension * 0.018) * (accent.color === 0xbcffb0 ? 0.72 : 1);
+        const size = accent.size * (0.78 + blink * 0.46);
+        peak = Math.max(peak, alpha);
+
+        graphics.lineStyle(0.9, accent.color, alpha * 0.82);
+        graphics.moveTo(x - size, y);
+        graphics.lineTo(x + size, y);
+        graphics.moveTo(x, y - size * 0.82);
+        graphics.lineTo(x, y + size * 0.82);
+
+        graphics.beginFill(accent.color, alpha * 0.34);
+        graphics.drawPolygon([
+          x,
+          y - size * 0.7,
+          x + size * 0.42,
+          y,
+          x,
+          y + size * 0.7,
+          x - size * 0.42,
+          y,
+        ]);
+        graphics.endFill();
+      }
+
+      this.peak = peak * container.alpha;
     },
   };
 }
