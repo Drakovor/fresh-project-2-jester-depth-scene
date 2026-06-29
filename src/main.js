@@ -5,10 +5,12 @@ import {
   BlurFilter,
   ColorMatrixFilter,
   Container,
+  DisplacementFilter,
   Graphics,
   Sprite,
   Texture,
   TilingSprite,
+  WRAP_MODES,
 } from 'pixi.js';
 import './app-shell.js';
 import './styles.css';
@@ -149,6 +151,11 @@ architectureLayer.addChild(signatureSignals);
 
 const livingSignals = makeLivingSignalSystem();
 architectureLayer.addChild(livingSignals.container);
+
+const glassRefraction = makeGlassRefractionSystem();
+postLayer.addChild(glassRefraction.map);
+architectureLayer.filters = [glassRefraction.architectureFilter];
+midLayer.filters = [glassRefraction.midFilter];
 
 const roomBreath = makeRoomBreathSystem();
 architectureLayer.addChild(roomBreath.graphics);
@@ -530,6 +537,7 @@ function animateScene(dt) {
   signatureSignals.alpha = 0.18 + breathe * 0.16 + presenceResonance * 0.035 + thresholdPulse * 0.024;
   signatureSignals.rotation = Math.sin(t * 0.055) * 0.002;
   livingSignals.update(t, w, h, lookX, lookY, breathe, slowPulse);
+  glassRefraction.update(t, w, h, lookX, lookY, orbit.axis, breathe, portraitFactor);
   roomBreath.update(t, w, h, lookX, lookY, breathe);
   arcReveal.update(t, w, h, lookX, lookY, orbit.axis, breathe, slowPulse);
   volumetricDepth.update(t, w, h, lookX, lookY, orbit.axis, breathe, slowPulse);
@@ -613,6 +621,9 @@ function animateScene(dt) {
   document.body.dataset.focusApertureAxis = orbit.axis;
   document.body.dataset.volumetricDepthMode = 'axis-bound-slit-haze';
   document.body.dataset.volumetricDepthAxis = orbit.axis;
+  document.body.dataset.glassRefractionMode = 'living-glass-refraction';
+  document.body.dataset.glassRefractionAxis = orbit.axis;
+  document.body.dataset.glassRefractionScale = glassRefraction.scale.toFixed(3);
   document.body.dataset.thresholdDepthMode = 'private-threshold-depth-lens';
   document.body.dataset.thresholdDepthAxis = orbit.axis;
   document.body.dataset.thresholdPressureMode = 'peripheral-threshold-pressure';
@@ -1296,6 +1307,101 @@ function makeCinematicGrainTexture(kind) {
       data[i + 1] = 4 + Math.round(intensity * 7);
       data[i + 2] = 12 + Math.round(intensity * 14);
       data[i + 3] = Math.round((fleck ? 22 : 7 + intensity * 12) * 0.72);
+    }
+  }
+
+  ctx.putImageData(image, 0, 0);
+  return Texture.from(canvas);
+}
+
+function makeGlassRefractionSystem() {
+  const mapTexture = makeGlassRefractionTexture();
+  mapTexture.baseTexture.wrapMode = WRAP_MODES.REPEAT;
+  const map = new Sprite(mapTexture);
+  map.alpha = 0;
+  map.renderable = true;
+  map.eventMode = 'none';
+
+  const architectureFilter = new DisplacementFilter(map, 1);
+  const midFilter = new DisplacementFilter(map, 1);
+  architectureFilter.padding = 24;
+  midFilter.padding = 18;
+
+  return {
+    map,
+    architectureFilter,
+    midFilter,
+    scale: 0,
+    update(t, w, h, lookX, lookY, axis, breathe, portraitFactor) {
+      const active = axis === 'x'
+        ? Math.min(1, Math.abs(lookX) / CAMERA.orbitLimitX)
+        : axis === 'y'
+          ? Math.min(1, Math.abs(lookY) / CAMERA.orbitLimitY)
+          : 0;
+      const base = clamp(1.05 + breathe * 0.42 + active * 0.72 - portraitFactor * 0.18, 0.85, 2.25);
+      const verticalBias = axis === 'y' ? 0.75 : 1;
+      const horizontalBias = axis === 'x' ? 0.82 : 1;
+
+      map.position.set(
+        -w * 0.12 + Math.sin(t * 0.07) * w * 0.016 + lookX * w * 0.018,
+        -h * 0.12 + Math.cos(t * 0.061) * h * 0.014 + lookY * h * 0.014,
+      );
+      map.scale.set(Math.max(w, h) / mapTexture.width * 1.48);
+      map.rotation = Math.sin(t * 0.035) * 0.035 + lookX * 0.012;
+
+      architectureFilter.scale.x = base * 1.2 * horizontalBias;
+      architectureFilter.scale.y = base * 0.78 * verticalBias;
+      midFilter.scale.x = base * 0.52 * horizontalBias;
+      midFilter.scale.y = base * 0.38 * verticalBias;
+      this.scale = base;
+    },
+  };
+}
+
+function makeGlassRefractionTexture() {
+  const size = 512;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  const image = ctx.createImageData(size, size);
+  const rng = createRng('living-glass-refraction');
+  const veins = [];
+
+  for (let i = 0; i < 18; i += 1) {
+    veins.push({
+      x: randRange(rng, 0, size),
+      y: randRange(rng, 0, size),
+      angle: randRange(rng, -Math.PI, Math.PI),
+      width: randRange(rng, 18, 74),
+      force: randRange(rng, 10, 31),
+    });
+  }
+
+  for (let y = 0; y < size; y += 1) {
+    for (let x = 0; x < size; x += 1) {
+      const u = x / size;
+      const v = y / size;
+      let dx = Math.sin(u * Math.PI * 8.5 + v * 5.1) * 10;
+      let dy = Math.cos(v * Math.PI * 7.5 + u * 4.6) * 10;
+      dx += Math.sin((u + v) * Math.PI * 12.0) * 5.5;
+      dy += Math.cos((u - v) * Math.PI * 11.0) * 5.5;
+
+      for (const vein of veins) {
+        const lx = x - vein.x;
+        const ly = y - vein.y;
+        const along = Math.cos(vein.angle) * lx + Math.sin(vein.angle) * ly;
+        const across = -Math.sin(vein.angle) * lx + Math.cos(vein.angle) * ly;
+        const falloff = Math.exp(-(across * across) / (vein.width * vein.width)) * Math.max(0, 1 - Math.abs(along) / 420);
+        dx += Math.cos(vein.angle) * vein.force * falloff;
+        dy += Math.sin(vein.angle) * vein.force * falloff;
+      }
+
+      const index = (y * size + x) * 4;
+      image.data[index] = clamp(Math.round(128 + dx), 0, 255);
+      image.data[index + 1] = clamp(Math.round(128 + dy), 0, 255);
+      image.data[index + 2] = clamp(Math.round(128 + (dx - dy) * 0.18), 0, 255);
+      image.data[index + 3] = 255;
     }
   }
 

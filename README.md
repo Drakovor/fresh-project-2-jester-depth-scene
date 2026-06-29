@@ -41,6 +41,7 @@ No old assets are required. If those files are missing, the app renders a proced
 - Cardinal reveal shutters and side reflections must stay behind the character and follow the same camera axis as the room arc.
 - The peripheral depth focus aperture reinforces the sensation of entering the space while keeping the central character/floor lane readable.
 - Axis-bound volumetric slit haze adds depth in the room air without becoming stage lighting or covering the character lane.
+- Living glass refraction may subtly bend only the architecture and light layers, never the character or floor anchor.
 - The private threshold lens adds fine floor/air depth around the central circle only, reinforcing the feeling of entering the room without adding sacred, stage, or royal symbols.
 - Peripheral threshold pressure adds subtle responsive tension in side walls and floor cuts, keeping the center clear while making the room feel awake.
 - Axis-bound anamorphic depth shear may add thin optical edge/floor traces, but it must follow the camera rail and never become UI, stage beams, or central haze.

@@ -408,6 +408,9 @@ function evaluateQualityGates(report) {
       assertGate(failures, sample.focusApertureAxis === sample.cameraAxis, `${name}/${sample.sample}: focus aperture axis ${sample.focusApertureAxis} does not match camera ${sample.cameraAxis}`);
       assertGate(failures, sample.volumetricDepthMode === 'axis-bound-slit-haze', `${name}/${sample.sample}: volumetric depth mode is ${sample.volumetricDepthMode}`);
       assertGate(failures, sample.volumetricDepthAxis === sample.cameraAxis, `${name}/${sample.sample}: volumetric depth axis ${sample.volumetricDepthAxis} does not match camera ${sample.cameraAxis}`);
+      assertGate(failures, sample.glassRefractionMode === 'living-glass-refraction', `${name}/${sample.sample}: glass refraction mode is ${sample.glassRefractionMode}`);
+      assertGate(failures, sample.glassRefractionAxis === sample.cameraAxis, `${name}/${sample.sample}: glass refraction axis ${sample.glassRefractionAxis} does not match camera ${sample.cameraAxis}`);
+      assertGate(failures, sample.glassRefractionScale >= 0.78 && sample.glassRefractionScale <= 2.35, `${name}/${sample.sample}: glass refraction scale out of range (${sample.glassRefractionScale})`);
       assertGate(failures, sample.thresholdDepthMode === 'private-threshold-depth-lens', `${name}/${sample.sample}: threshold depth mode is ${sample.thresholdDepthMode}`);
       assertGate(failures, sample.thresholdDepthAxis === sample.cameraAxis, `${name}/${sample.sample}: threshold depth axis ${sample.thresholdDepthAxis} does not match camera ${sample.cameraAxis}`);
       assertGate(failures, sample.thresholdPressureMode === 'peripheral-threshold-pressure', `${name}/${sample.sample}: threshold pressure mode is ${sample.thresholdPressureMode}`);
@@ -634,6 +637,9 @@ async function readSceneState(page, sample) {
       focusApertureAxis: document.body.dataset.focusApertureAxis,
       volumetricDepthMode: document.body.dataset.volumetricDepthMode,
       volumetricDepthAxis: document.body.dataset.volumetricDepthAxis,
+      glassRefractionMode: document.body.dataset.glassRefractionMode,
+      glassRefractionAxis: document.body.dataset.glassRefractionAxis,
+      glassRefractionScale: Number(document.body.dataset.glassRefractionScale),
       thresholdDepthMode: document.body.dataset.thresholdDepthMode,
       thresholdDepthAxis: document.body.dataset.thresholdDepthAxis,
       thresholdPressureMode: document.body.dataset.thresholdPressureMode,
