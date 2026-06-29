@@ -344,6 +344,7 @@ function renderPulseMeter(label, value) {
 function renderWorldSurface() {
   const summary = appState.publicWorld?.summary ?? getPlayableSummary(hollowState.world);
   const zones = appState.publicWorld?.zones ?? describeWorldZones(hollowState.world);
+  const relations = getWorldRelations();
   const chronicle = getChronicleEvents();
   const ledgerActions = getLedgerActions();
   const creator = appState.creatorOverview;
@@ -359,9 +360,9 @@ function renderWorldSurface() {
       </div>
 
       <div class="surface-body">
-        ${appState.activeView === 'world' ? renderWorldView(summary, zones, consequenceSummary, ledgerActions) : ''}
+        ${appState.activeView === 'world' ? renderWorldView(summary, zones, relations, consequenceSummary, ledgerActions) : ''}
         ${appState.activeView === 'chronicle' ? renderChronicleView(chronicle, ledgerActions) : ''}
-        ${appState.activeView === 'creator' ? renderCreatorView(creator, summary, zones, consequenceSummary, ledgerActions) : ''}
+        ${appState.activeView === 'creator' ? renderCreatorView(creator, summary, zones, relations, consequenceSummary, ledgerActions) : ''}
       </div>
     </section>
   `;
@@ -375,10 +376,11 @@ function renderSurfaceTab(view, label) {
   `;
 }
 
-function renderWorldView(summary, zones, consequenceSummary, ledgerActions) {
+function renderWorldView(summary, zones, relations, consequenceSummary, ledgerActions) {
   const hotZones = zones
     .filter((zone) => summary.hotZones.includes(zone.id))
     .slice(0, 2);
+  const guardedZones = zones.filter((zone) => (zone.guard ?? 0) > 0.08);
 
   return `
     <div class="surface-pane world-pane">
@@ -396,9 +398,15 @@ function renderWorldView(summary, zones, consequenceSummary, ledgerActions) {
         <b>${ledgerActions.length}</b>
         <i>${escapeText(appState.remoteStatus)}</i>
       </div>
+      <div class="surface-ledger">
+        <span>Relations</span>
+        <b>${relations.length}</b>
+        <i>${guardedZones.length} guarded</i>
+      </div>
       <div class="surface-zone-stack">
         ${hotZones.map((zone) => renderZoneRow(zone)).join('')}
       </div>
+      ${relations.length > 0 ? renderRelationList(relations.slice(0, 2)) : ''}
       ${renderConsequenceStrip(consequenceSummary)}
     </div>
   `;
@@ -425,15 +433,18 @@ function renderChronicleView(events, ledgerActions) {
   `;
 }
 
-function renderCreatorView(creator, summary, zones, consequenceSummary, fallbackLedgerActions) {
+function renderCreatorView(creator, summary, zones, fallbackRelations, consequenceSummary, fallbackLedgerActions) {
   const ledger = creator?.ledger ?? {
     tick: summary.tick,
     visibleTraceCount: summary.visibleTraceCount,
     chronicleCount: getChronicleEvents().length,
     actionCount: fallbackLedgerActions.length,
+    relationCount: fallbackRelations.length,
+    guardedZoneCount: zones.filter((zone) => (zone.guard ?? 0) > 0.08).length,
     snapshotCount: 0,
   };
   const pressureLeaders = creator?.pressureLeaders ?? zones.slice(0, 3);
+  const relations = creator?.relations ?? fallbackRelations;
   const sessions = creator?.sessions ?? { total: 0, driveCounts: {}, activeMasks: [] };
   const recentActions = creator?.recentActions ?? fallbackLedgerActions;
 
@@ -448,9 +459,15 @@ function renderCreatorView(creator, summary, zones, consequenceSummary, fallback
         <div><span>Chronicle</span><b>${ledger.chronicleCount}</b></div>
         <div><span>Actions</span><b>${ledger.actionCount ?? recentActions.length}</b></div>
       </div>
+      <div class="creator-grid">
+        <div><span>Relations</span><b>${ledger.relationCount ?? relations.length}</b></div>
+        <div><span>Guarded</span><b>${ledger.guardedZoneCount ?? 0}</b></div>
+        <div><span>Public</span><b>${ledger.publicActionCount ?? 0}</b></div>
+      </div>
       <div class="surface-zone-stack">
         ${pressureLeaders.map((zone) => renderZoneRow(zone)).join('')}
       </div>
+      ${relations.length > 0 ? renderRelationList(relations.slice(0, 4)) : ''}
       <div class="drive-ledger">
         ${MASK_DRIVES.map((drive) => `
           <span>${drive.label}<b>${sessions.driveCounts?.[drive.id] ?? 0}</b></span>
@@ -458,6 +475,20 @@ function renderCreatorView(creator, summary, zones, consequenceSummary, fallback
       </div>
       ${renderSignalGrid(creator?.consequenceSummary ?? consequenceSummary)}
       ${renderActionLedger(recentActions.slice(0, 5), 'Recent')}
+    </div>
+  `;
+}
+
+function renderRelationList(relations) {
+  return `
+    <div class="relation-list">
+      ${relations.map((relation) => `
+        <div class="relation-row" data-kind="${escapeText(relation.kind ?? 'echo')}" style="--relation-strength: ${Number(relation.strength) || 0}">
+          <span>${escapeText(relation.kind ?? 'echo')}</span>
+          <b>${escapeText(relation.fromZoneLabel ?? relation.fromZoneId)} -> ${escapeText(relation.toZoneLabel ?? relation.toZoneId)}</b>
+          <i aria-hidden="true"></i>
+        </div>
+      `).join('')}
     </div>
   `;
 }
@@ -769,6 +800,7 @@ function applyRemoteSurfaceState(remoteState) {
   appState.publicWorld = {
     summary: remoteState.summary ?? getPlayableSummary(remoteState.world),
     zones: remoteState.zoneLoom ?? describeWorldZones(remoteState.world),
+    relations: remoteState.relations ?? appState.publicWorld?.relations ?? [],
     chronicle: remoteState.chronicle ?? [],
     ledger: remoteState.ledger ?? appState.publicWorld?.ledger ?? [],
     consequenceSummary: remoteState.consequenceSummary ?? appState.publicWorld?.consequenceSummary ?? null,
@@ -856,6 +888,27 @@ function getChronicleEvents() {
   }));
 }
 
+function getWorldRelations() {
+  const remoteRelations = appState.publicWorld?.relations ?? [];
+  if (remoteRelations.length > 0) return remoteRelations;
+
+  const creatorRelations = appState.creatorOverview?.relations ?? [];
+  if (creatorRelations.length > 0) return creatorRelations;
+
+  const relations = Array.isArray(hollowState.world.relations) ? hollowState.world.relations : [];
+  return relations
+    .filter((relation) => (Number(relation.strength) || 0) > 0.08)
+    .map((relation) => {
+      const fromZone = ZONES.find((zone) => zone.id === relation.fromZoneId);
+      const toZone = ZONES.find((zone) => zone.id === relation.toZoneId);
+      return {
+        ...relation,
+        fromZoneLabel: fromZone?.label ?? relation.fromZoneId,
+        toZoneLabel: toZone?.label ?? relation.toZoneId,
+      };
+    });
+}
+
 function getLedgerActions() {
   const publicLedger = appState.publicWorld?.ledger ?? [];
   if (publicLedger.length > 0) return publicLedger;
@@ -910,7 +963,7 @@ function formatForecast(forecast) {
   const pressure = signedPercent(forecast.pressureDelta);
   const clarity = signedPercent(forecast.clarityDelta);
   const fracture = signedPercent(forecast.fractureDelta);
-  return `risk ${formatPercent(forecast.risk)} / ${forecast.signal} / ${forecast.nextZone.state} / pressure ${pressure} / clarity ${clarity} / fracture ${fracture}`;
+  return `risk ${formatPercent(forecast.risk)} / ${forecast.signal} / ${forecast.worldEffect ?? forecast.nextZone.state} / pressure ${pressure} / clarity ${clarity} / fracture ${fracture}`;
 }
 
 function signedPercent(value) {

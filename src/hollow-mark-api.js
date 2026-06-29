@@ -80,6 +80,7 @@ function normalizeRemotePayload(payload) {
     zoneLoom: payload.zoneLoom ?? null,
     selectedZoneState: payload.selectedZoneState ?? null,
     moveForecast: payload.moveForecast ?? null,
+    relations: payload.relations ?? [],
     chronicle: payload.chronicle ?? [],
     ledger: payload.ledger ?? [],
     consequenceSummary: payload.consequenceSummary ?? null,

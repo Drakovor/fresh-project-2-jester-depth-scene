@@ -42,45 +42,79 @@ try {
   const changedMask = await writeJson('/api/mask/drive', { drive: 'defiance' }, 'PATCH', sessionId);
   assert(changedMask.mask.drive === 'defiance', 'drive was not updated');
 
-  const moved = await writeJson(
+  const bound = await writeJson(
+    '/api/world/move',
+    { zoneId: 'pistachio-static', moveId: 'bind' },
+    'POST',
+    sessionId,
+  );
+  assert(bound.world.tick === 1, 'world tick did not advance after bind');
+  assert(bound.lastTrace?.zone === 'pistachio-static', 'last trace zone mismatch after bind');
+  assert(bound.summary.visibleTraceCount > 0, 'bind did not create a visible trace');
+  assert(bound.summary.relationCount === 1, 'bind did not create relation count');
+  assert(bound.relations.length === 1, 'session payload did not expose bound relation');
+  assert(bound.consequenceSummary?.publicCount >= 2, 'session payload did not include relation consequences');
+  assert(bound.consequenceSummary?.eventTypeCounts?.relation_bound >= 1, 'relation bind consequence was not counted');
+  assert(Array.isArray(bound.ledger) && bound.ledger.length === 1, 'session payload did not include action ledger');
+  assert(bound.ledger[0].after?.zoneState, 'session ledger did not expose after state');
+
+  const relationsAfterBind = await readJson('/api/world/relations');
+  assert(relationsAfterBind.count === 1, 'relations endpoint did not expose bound relation');
+  assert(relationsAfterBind.relations[0].fromZoneLabel, 'relation projection did not include zone labels');
+
+  await writeJson('/api/mask/drive', { drive: 'static' }, 'PATCH', sessionId);
+
+  const spared = await writeJson(
+    '/api/world/move',
+    { zoneId: 'threshold-floor', moveId: 'spare' },
+    'POST',
+    sessionId,
+  );
+  assert(spared.world.tick === 2, 'world tick did not advance after spare');
+  assert(spared.summary.guardedZoneCount >= 1, 'spare did not create guarded zone count');
+  assert(spared.zoneLoom.some((zone) => zone.guard > 0.08), 'zone loom did not expose guard');
+  assert(spared.consequenceSummary?.eventTypeCounts?.zone_guarded >= 1, 'zone guard consequence was not counted');
+
+  const severed = await writeJson(
     '/api/world/move',
     { zoneId: 'pistachio-static', moveId: 'sever' },
     'POST',
     sessionId,
   );
-  assert(moved.world.tick === 1, 'world tick did not advance');
-  assert(moved.lastTrace?.zone === 'pistachio-static', 'last trace zone mismatch');
-  assert(moved.summary.visibleTraceCount > 0, 'move did not create a visible trace');
-  assert(moved.consequenceSummary?.publicCount >= 1, 'session payload did not include public consequences');
-  assert(moved.consequenceSummary?.eventTypeCounts?.visible_trace >= 1, 'visible trace consequence was not counted');
-  assert(Array.isArray(moved.ledger) && moved.ledger.length === 1, 'session payload did not include action ledger');
-  assert(moved.ledger[0].after?.zoneState, 'session ledger did not expose after state');
+  assert(severed.world.tick === 3, 'world tick did not advance after sever');
+  assert(severed.summary.relationCount === 0, 'sever did not remove relation count');
+  assert(severed.relations.length === 0, 'session payload still exposes relation after sever');
+  assert(severed.consequenceSummary?.eventTypeCounts?.relation_severed >= 1, 'relation sever consequence was not counted');
 
   const chronicle = await readJson('/api/chronicle/public');
-  assert(chronicle.events.length >= 1, 'chronicle did not record public event');
+  assert(chronicle.events.length >= 4, 'chronicle did not record public events');
   assert(chronicle.events.some((event) => event.eventType === 'visible_trace'), 'chronicle did not include visible trace event');
+  assert(chronicle.events.some((event) => event.eventType === 'relation_bound'), 'chronicle did not include relation bound event');
+  assert(chronicle.events.some((event) => event.eventType === 'zone_guarded'), 'chronicle did not include zone guarded event');
+  assert(chronicle.events.some((event) => event.eventType === 'relation_severed'), 'chronicle did not include relation severed event');
 
   const publicLedger = await readJson('/api/ledger/public');
-  assert(publicLedger.actions.length === 1, 'public ledger did not expose public action');
-  assert(publicLedger.actions[0].delta?.zonePressure > 0, 'public ledger did not expose action delta');
+  assert(publicLedger.actions.length === 3, 'public ledger did not expose public actions');
+  assert(publicLedger.actions.some((action) => action.consequenceTypes.includes('relation_bound')), 'public ledger did not include relation bind action');
 
   const sessionLedger = await readJson('/api/world/me/ledger', sessionId);
-  assert(sessionLedger.actions.length === 1, 'session ledger did not expose own action');
+  assert(sessionLedger.actions.length === 3, 'session ledger did not expose own actions');
   assert(sessionLedger.actions[0].chronicleEventIds.length >= 1, 'session ledger did not link chronicle events');
 
   const creator = await readJson('/api/creator/overview');
-  assert(creator.ledger.tick === 1, 'creator overview did not expose current tick');
-  assert(creator.ledger.actionCount === 1, 'creator overview did not count action ledger');
-  assert(creator.ledger.publicActionCount === 1, 'creator overview did not count public action ledger');
-  assert(creator.recentActions.length === 1, 'creator overview did not expose recent actions');
+  assert(creator.ledger.tick === 3, 'creator overview did not expose current tick');
+  assert(creator.ledger.actionCount === 3, 'creator overview did not count action ledger');
+  assert(creator.ledger.publicActionCount === 3, 'creator overview did not count public action ledger');
+  assert(creator.ledger.guardedZoneCount >= 1, 'creator overview did not count guarded zones');
+  assert(creator.recentActions.length === 3, 'creator overview did not expose recent actions');
   assert(creator.sessions.total === 1, 'creator overview did not count active session');
   assert(creator.pressureLeaders.length > 0, 'creator overview did not expose pressure leaders');
   assert(creator.consequenceSummary.publicCount >= 1, 'creator overview did not expose consequence summary');
 
   const admin = await readJson('/api/admin/world');
   assert(admin.sessions.length === 1, 'admin world did not expose the test session');
-  assert(admin.ledger.length === 1, 'admin world did not expose the action ledger');
-  assert(admin.snapshots.length === 1, 'world snapshot was not recorded');
+  assert(admin.ledger.length === 3, 'admin world did not expose the action ledger');
+  assert(admin.snapshots.length === 3, 'world snapshots were not recorded');
 
   console.log('Hollow Mark API check passed');
 } finally {

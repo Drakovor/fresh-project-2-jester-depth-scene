@@ -234,6 +234,7 @@ canvas {
 .surface-zone-stack,
 .chronicle-list,
 .action-ledger,
+.relation-list,
 .drive-ledger,
 .signal-grid {
   display: grid;
@@ -391,6 +392,54 @@ canvas {
 .ledger-row small {
   color: rgba(248, 237, 248, 0.52);
   font-size: 10px;
+}
+
+.relation-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px;
+  align-items: center;
+  min-height: 32px;
+  padding: 0 9px;
+  border-radius: 7px;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.16);
+  box-shadow: inset 0 0 0 1px rgba(248, 237, 248, 0.05);
+}
+
+.relation-row span,
+.relation-row b {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10px;
+}
+
+.relation-row span {
+  color: rgba(188, 255, 176, 0.72);
+  font-weight: 760;
+  text-transform: uppercase;
+}
+
+.relation-row[data-kind="bend"] span {
+  color: rgba(255, 216, 178, 0.78);
+}
+
+.relation-row b {
+  color: rgba(248, 237, 248, 0.72);
+  font-weight: 720;
+}
+
+.relation-row i {
+  position: absolute;
+  inset: auto auto 0 0;
+  width: calc(var(--relation-strength) * 100%);
+  height: 2px;
+  background: linear-gradient(90deg, rgba(188, 255, 176, 0.48), rgba(255, 162, 93, 0.5), rgba(157, 99, 229, 0.32));
 }
 
 .surface-empty {

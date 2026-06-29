@@ -145,40 +145,54 @@ export function createWorldState() {
     },
     zones: ZONES.map((zone) => ({
       ...zone,
+      guard: 0,
       traces: [],
       visibleMarks: [],
     })),
+    relations: [],
     actionLog: [],
   };
 }
 
 export function applyMove(worldState, maskState, moveId, zoneId, now = new Date().toISOString()) {
-  assertCompatible(worldState, maskState);
+  const baseWorld = normalizeWorldState(worldState);
+  assertCompatible(baseWorld, maskState);
 
   const move = getMove(moveId);
   const drive = getDrive(maskState.drive);
-  const zone = worldState.zones.find((candidate) => candidate.id === zoneId);
+  const zone = baseWorld.zones.find((candidate) => candidate.id === zoneId);
   if (!zone) throw new Error(`Unknown zone: ${zoneId}`);
   if (maskState.will < move.cost) throw new Error(`Not enough will for move: ${moveId}`);
 
   const trace = createTrace({ move, drive, zone, mask: maskState, now });
-  const nextZones = worldState.zones.map((candidate) => {
+  const primaryZones = baseWorld.zones.map((candidate) => {
     if (candidate.id !== zoneId) return cloneZone(candidate);
     return applyTraceToZone(candidate, trace);
   });
+  const semanticWorld = applyMoveSemantics({
+    world: {
+      ...baseWorld,
+      tick: baseWorld.tick + 1,
+      zones: primaryZones,
+      relations: decayRelations(baseWorld.relations),
+    },
+    trace,
+    mask: maskState,
+    now,
+  });
+  trace.worldEffects = semanticWorld.effects;
   const nextWorld = {
-    ...worldState,
-    tick: worldState.tick + 1,
-    zones: nextZones,
+    ...semanticWorld.world,
     actionLog: [
-      ...worldState.actionLog,
+      ...baseWorld.actionLog,
       {
-        tick: worldState.tick + 1,
+        tick: baseWorld.tick + 1,
         at: now,
         maskId: maskState.id,
         moveId,
         zoneId,
         traceId: trace.id,
+        effects: semanticWorld.effects,
       },
     ],
   };
@@ -196,9 +210,10 @@ export function applyMove(worldState, maskState, moveId, zoneId, now = new Date(
 }
 
 export function computeWorldPulse(worldState) {
-  const pressure = average(worldState.zones.map((zone) => zone.pressure));
-  const clarity = average(worldState.zones.map((zone) => zone.clarity));
-  const fracture = average(worldState.zones.map((zone) => zone.fracture ?? 0));
+  const world = normalizeWorldState(worldState);
+  const pressure = average(world.zones.map((zone) => zone.pressure));
+  const clarity = average(world.zones.map((zone) => zone.clarity));
+  const fracture = average(world.zones.map((zone) => zone.fracture ?? 0));
 
   return {
     pressure: clamp01(pressure),
@@ -208,49 +223,82 @@ export function computeWorldPulse(worldState) {
 }
 
 export function getPlayableSummary(worldState) {
-  const zones = describeWorldZones(worldState);
-  const hotZones = [...worldState.zones]
+  const world = normalizeWorldState(worldState);
+  const zones = describeWorldZones(world);
+  const hotZones = [...world.zones]
     .sort((left, right) => right.pressure - left.pressure)
     .slice(0, 2)
     .map((zone) => zone.id);
 
   return {
-    version: worldState.version,
-    tick: worldState.tick,
-    pulse: computeWorldPulse(worldState),
+    version: world.version,
+    tick: world.tick,
+    pulse: computeWorldPulse(world),
     hotZones,
     zones,
-    visibleTraceCount: worldState.zones.reduce((total, zone) => total + zone.visibleMarks.length, 0),
+    visibleTraceCount: world.zones.reduce((total, zone) => total + zone.visibleMarks.length, 0),
+    relationCount: world.relations.filter((relation) => relation.strength > 0.08).length,
+    guardedZoneCount: world.zones.filter((zone) => (Number(zone.guard) || 0) > 0.08).length,
   };
 }
 
 export function describeWorldZones(worldState) {
-  return worldState.zones.map((zone) => {
+  const world = normalizeWorldState(worldState);
+  return world.zones.map((zone) => {
     return describeZoneProjection(zone, {
       visibleTraceCount: Array.isArray(zone.visibleMarks) ? zone.visibleMarks.length : 0,
+      relationCount: countZoneRelations(world, zone.id),
     });
   });
 }
 
+export function describeWorldRelations(worldState) {
+  const world = normalizeWorldState(worldState);
+  return world.relations
+    .filter((relation) => relation.strength > 0.08)
+    .map((relation) => {
+      const from = world.zones.find((zone) => zone.id === relation.fromZoneId);
+      const to = world.zones.find((zone) => zone.id === relation.toZoneId);
+      return {
+        id: relation.id,
+        kind: relation.kind,
+        fromZoneId: relation.fromZoneId,
+        fromZoneLabel: from?.label ?? relation.fromZoneId,
+        toZoneId: relation.toZoneId,
+        toZoneLabel: to?.label ?? relation.toZoneId,
+        strength: relation.strength,
+        stability: relation.stability,
+        createdBy: relation.createdBy,
+        traceId: relation.traceId,
+        createdAt: relation.createdAt,
+      };
+    });
+}
+
 export function describeMoveForecast(worldState, maskState, moveId, zoneId) {
-  assertCompatible(worldState, maskState);
+  const world = normalizeWorldState(worldState);
+  assertCompatible(world, maskState);
 
   const move = getMove(moveId);
   const drive = getDrive(maskState.drive);
-  const zone = worldState.zones.find((candidate) => candidate.id === zoneId);
+  const zone = world.zones.find((candidate) => candidate.id === zoneId);
   if (!zone) throw new Error(`Unknown zone: ${zoneId}`);
 
   const trace = createTrace({ move, drive, zone, mask: maskState, now: 'forecast' });
   const visibleTraceCount = Array.isArray(zone.visibleMarks) ? zone.visibleMarks.length : 0;
   const nextVisibleTraceCount = visibleTraceCount + (trace.visibility >= 0.14 ? 1 : 0);
+  const guardedTrace = applyGuardToTrace(zone, trace);
+  const semanticPreview = previewMoveSemantics(world, trace, maskState);
   const nextZone = describeZoneProjection(zone, {
-    pressure: clamp01(zone.pressure + trace.pressure),
-    clarity: clamp01(zone.clarity + trace.clarity),
-    fracture: clamp01((zone.fracture ?? 0) + trace.fracture),
+    pressure: clamp01(zone.pressure + guardedTrace.pressure + semanticPreview.zonePressureDelta),
+    clarity: clamp01(zone.clarity + guardedTrace.clarity + semanticPreview.zoneClarityDelta),
+    fracture: clamp01((zone.fracture ?? 0) + guardedTrace.fracture + semanticPreview.zoneFractureDelta),
+    guard: semanticPreview.nextGuard,
     visibleTraceCount: nextVisibleTraceCount,
+    relationCount: countZoneRelations(world, zone.id) + semanticPreview.relationDelta,
   });
   const risk = clamp01(
-    trace.fracture * 2.1
+    guardedTrace.fracture * 2.1
       + Math.max(nextZone.pressure - nextZone.clarity, 0) * 0.34
       + Math.max(move.cost - maskState.will, 0) * 0.12,
   );
@@ -265,15 +313,17 @@ export function describeMoveForecast(worldState, maskState, moveId, zoneId) {
     moveLabel: move.label,
     zoneId: zone.id,
     zoneLabel: zone.label,
-    pressureDelta: trace.pressure,
-    clarityDelta: trace.clarity,
+    pressureDelta: guardedTrace.pressure + semanticPreview.zonePressureDelta,
+    clarityDelta: guardedTrace.clarity + semanticPreview.zoneClarityDelta,
     visibilityDelta: trace.visibility,
-    fractureDelta: trace.fracture,
+    fractureDelta: guardedTrace.fracture + semanticPreview.zoneFractureDelta,
     risk,
     signal,
     cost: move.cost,
     canAfford: maskState.will >= move.cost,
     nextZone,
+    worldEffect: semanticPreview.effect,
+    relationDelta: semanticPreview.relationDelta,
   };
 }
 
@@ -305,12 +355,16 @@ function describeZoneProjection(zone, overrides = {}) {
   const pressure = clamp01(Number(overrides.pressure ?? zone.pressure) || 0);
   const clarity = clamp01(Number(overrides.clarity ?? zone.clarity) || 0);
   const fracture = clamp01(Number(overrides.fracture ?? zone.fracture) || 0);
+  const guard = clamp01(Number(overrides.guard ?? zone.guard) || 0);
+  const relationCount = Number(overrides.relationCount ?? 0) || 0;
   const visibleTraceCount = Number(overrides.visibleTraceCount ?? (Array.isArray(zone.visibleMarks) ? zone.visibleMarks.length : 0)) || 0;
   const intensity = clamp01(
     pressure * 0.48
       + fracture * 0.24
       + (1 - clarity) * 0.18
-      + Math.min(visibleTraceCount, 4) * 0.08,
+      + Math.min(visibleTraceCount, 4) * 0.08
+      + Math.min(relationCount, 3) * 0.035
+      - guard * 0.06,
   );
 
   return {
@@ -319,6 +373,8 @@ function describeZoneProjection(zone, overrides = {}) {
     pressure,
     clarity,
     fracture,
+    guard,
+    relationCount,
     visibleTraceCount,
     state: chooseZoneState({ pressure, clarity, fracture, visibleTraceCount, intensity }),
     intensity,
@@ -346,9 +402,10 @@ function createTrace({ move, drive, zone, mask, now }) {
 }
 
 function applyTraceToZone(zone, trace) {
+  const guardedTrace = applyGuardToTrace(zone, trace);
   const visibleMarks = trace.visibility >= 0.14
     ? [
-        ...zone.visibleMarks,
+        ...normalizeVisibleMarks(zone.visibleMarks),
         {
           id: trace.id,
           kind: trace.move,
@@ -356,15 +413,288 @@ function applyTraceToZone(zone, trace) {
           intensity: trace.visibility,
         },
       ]
-    : [...zone.visibleMarks];
+    : [...normalizeVisibleMarks(zone.visibleMarks)];
+  const guard = clamp01(Number(zone.guard) || 0);
+  const nextGuard = clamp01(guard - Math.max(guardedTrace.pressure, 0) * 0.22 - Math.max(guardedTrace.fracture, 0) * 0.16);
 
   return {
     ...zone,
-    pressure: clamp01(zone.pressure + trace.pressure),
-    clarity: clamp01(zone.clarity + trace.clarity),
-    fracture: clamp01((zone.fracture ?? 0) + trace.fracture),
-    traces: [...zone.traces, trace],
+    pressure: clamp01(zone.pressure + guardedTrace.pressure),
+    clarity: clamp01(zone.clarity + guardedTrace.clarity),
+    fracture: clamp01((zone.fracture ?? 0) + guardedTrace.fracture),
+    guard: nextGuard,
+    traces: [...normalizeTraces(zone.traces), trace],
     visibleMarks,
+  };
+}
+
+function applyMoveSemantics({ world, trace, mask, now }) {
+  const effects = [];
+  let nextWorld = applyEchoRelations(world, trace, effects);
+
+  if (trace.move === 'bind') {
+    const targetZoneId = chooseRelationTargetZone(nextWorld, trace.zone);
+    if (targetZoneId) {
+      nextWorld = upsertRelation(nextWorld, {
+        kind: 'echo',
+        fromZoneId: trace.zone,
+        toZoneId: targetZoneId,
+        strength: clamp01(0.28 + trace.visibility * 0.42),
+        stability: clamp01(0.62 + trace.clarity * 0.38),
+        createdBy: mask.id,
+        traceId: trace.id,
+        createdAt: now,
+      }, effects);
+    }
+  }
+
+  if (trace.move === 'sever') {
+    nextWorld = severStrongestRelation(nextWorld, trace, effects);
+  }
+
+  if (trace.move === 'bend') {
+    nextWorld = bendZonePressure(nextWorld, trace, mask, now, effects);
+  }
+
+  if (trace.move === 'spare') {
+    nextWorld = guardZone(nextWorld, trace.zone, trace, effects);
+  }
+
+  return { world: nextWorld, effects };
+}
+
+function previewMoveSemantics(worldState, trace, mask) {
+  const world = normalizeWorldState(worldState);
+  const attachedRelations = world.relations.filter((relation) => relationTouchesZone(relation, trace.zone));
+  if (trace.move === 'bind') {
+    return {
+      effect: 'echo link will form',
+      relationDelta: chooseRelationTargetZone(world, trace.zone) ? 1 : 0,
+      zonePressureDelta: 0,
+      zoneClarityDelta: 0,
+      zoneFractureDelta: 0,
+      nextGuard: Number(world.zones.find((zone) => zone.id === trace.zone)?.guard) || 0,
+    };
+  }
+  if (trace.move === 'sever') {
+    return {
+      effect: attachedRelations.length > 0 ? 'strongest echo will break' : 'clean pressure cut',
+      relationDelta: attachedRelations.length > 0 ? -1 : 0,
+      zonePressureDelta: -0.04,
+      zoneClarityDelta: 0.03,
+      zoneFractureDelta: -0.03,
+      nextGuard: Number(world.zones.find((zone) => zone.id === trace.zone)?.guard) || 0,
+    };
+  }
+  if (trace.move === 'bend') {
+    return {
+      effect: chooseBendTargetZone(world, trace.zone) ? 'pressure will redirect' : 'pressure will fold inward',
+      relationDelta: 0,
+      zonePressureDelta: -0.05,
+      zoneClarityDelta: -0.01,
+      zoneFractureDelta: 0.01,
+      nextGuard: Number(world.zones.find((zone) => zone.id === trace.zone)?.guard) || 0,
+    };
+  }
+  if (trace.move === 'spare') {
+    const zone = world.zones.find((candidate) => candidate.id === trace.zone);
+    return {
+      effect: 'zone guard will rise',
+      relationDelta: 0,
+      zonePressureDelta: -0.03,
+      zoneClarityDelta: 0.02,
+      zoneFractureDelta: -0.04,
+      nextGuard: clamp01((Number(zone?.guard) || 0) + 0.32),
+    };
+  }
+  return {
+    effect: attachedRelations.length > 0 ? 'echo may carry' : 'direct trace',
+    relationDelta: 0,
+    zonePressureDelta: 0,
+    zoneClarityDelta: 0,
+    zoneFractureDelta: 0,
+    nextGuard: Number(world.zones.find((zone) => zone.id === trace.zone)?.guard) || 0,
+  };
+}
+
+function applyEchoRelations(world, trace, effects) {
+  const relations = normalizeRelations(world.relations);
+  const activeRelations = relations.filter((relation) => relationTouchesZone(relation, trace.zone));
+  if (activeRelations.length === 0) return world;
+
+  let nextZones = world.zones.map(cloneZone);
+  for (const relation of activeRelations) {
+    const targetZoneId = relation.fromZoneId === trace.zone ? relation.toZoneId : relation.fromZoneId;
+    const strength = clamp01(relation.strength);
+    nextZones = nextZones.map((zone) => {
+      if (zone.id !== targetZoneId) return zone;
+      return {
+        ...zone,
+        pressure: clamp01(zone.pressure + Math.max(trace.pressure, 0) * strength * 0.3),
+        clarity: clamp01(zone.clarity + trace.clarity * strength * 0.14),
+        fracture: clamp01((zone.fracture ?? 0) + trace.fracture * strength * 0.22),
+      };
+    });
+    effects.push({
+      type: 'echo_carry',
+      relationId: relation.id,
+      fromZoneId: trace.zone,
+      toZoneId: targetZoneId,
+      strength,
+    });
+  }
+
+  return { ...world, zones: nextZones };
+}
+
+function upsertRelation(world, relationDraft, effects) {
+  const existing = world.relations.find((relation) => {
+    return relation.kind === relationDraft.kind
+      && (
+        (relation.fromZoneId === relationDraft.fromZoneId && relation.toZoneId === relationDraft.toZoneId)
+        || (relation.fromZoneId === relationDraft.toZoneId && relation.toZoneId === relationDraft.fromZoneId)
+      );
+  });
+  const relation = existing
+    ? {
+        ...existing,
+        strength: clamp01(Math.max(existing.strength, relationDraft.strength) + 0.08),
+        stability: clamp01(Math.max(existing.stability, relationDraft.stability)),
+        traceId: relationDraft.traceId,
+        createdAt: relationDraft.createdAt,
+      }
+    : {
+        id: `relation:${relationDraft.kind}:${relationDraft.fromZoneId}:${relationDraft.toZoneId}:${relationDraft.createdAt}`,
+        ...relationDraft,
+      };
+
+  effects.push({
+    type: existing ? 'relation_deepened' : 'relation_bound',
+    kind: relation.kind,
+    relationId: relation.id,
+    fromZoneId: relation.fromZoneId,
+    toZoneId: relation.toZoneId,
+    strength: relation.strength,
+  });
+
+  return {
+    ...world,
+    relations: [
+      ...world.relations.filter((candidate) => candidate.id !== relation.id),
+      relation,
+    ].slice(-36),
+  };
+}
+
+function severStrongestRelation(world, trace, effects) {
+  const attachedRelations = world.relations
+    .filter((relation) => relationTouchesZone(relation, trace.zone))
+    .sort((left, right) => right.strength - left.strength);
+  const severed = attachedRelations[0];
+  const nextZones = world.zones.map((zone) => {
+    if (zone.id !== trace.zone) return cloneZone(zone);
+    return {
+      ...cloneZone(zone),
+      pressure: clamp01(zone.pressure - 0.04),
+      clarity: clamp01(zone.clarity + 0.03),
+      fracture: clamp01((zone.fracture ?? 0) - 0.03),
+    };
+  });
+
+  if (!severed) {
+    effects.push({ type: 'clean_cut', zoneId: trace.zone });
+    return { ...world, zones: nextZones };
+  }
+
+  effects.push({
+    type: 'relation_severed',
+    relationId: severed.id,
+    fromZoneId: severed.fromZoneId,
+    toZoneId: severed.toZoneId,
+    strength: severed.strength,
+  });
+  return {
+    ...world,
+    zones: nextZones,
+    relations: world.relations.filter((relation) => relation.id !== severed.id),
+  };
+}
+
+function bendZonePressure(world, trace, mask, now, effects) {
+  const targetZoneId = chooseBendTargetZone(world, trace.zone);
+  let nextZones = world.zones.map((zone) => {
+    if (zone.id === trace.zone) {
+      return {
+        ...cloneZone(zone),
+        pressure: clamp01(zone.pressure - 0.05),
+        clarity: clamp01(zone.clarity - 0.01),
+        fracture: clamp01((zone.fracture ?? 0) + 0.01),
+      };
+    }
+    if (zone.id === targetZoneId) {
+      return {
+        ...cloneZone(zone),
+        pressure: clamp01(zone.pressure + 0.07),
+        clarity: clamp01(zone.clarity - 0.02),
+        fracture: clamp01((zone.fracture ?? 0) + 0.035),
+      };
+    }
+    return cloneZone(zone);
+  });
+
+  if (targetZoneId) {
+    effects.push({
+      type: 'pressure_bent',
+      fromZoneId: trace.zone,
+      toZoneId: targetZoneId,
+      strength: 0.42,
+    });
+    return upsertRelation({
+      ...world,
+      zones: nextZones,
+    }, {
+      kind: 'bend',
+      fromZoneId: trace.zone,
+      toZoneId: targetZoneId,
+      strength: 0.34,
+      stability: mask.drive === 'static' ? 0.54 : 0.42,
+      createdBy: mask.id,
+      traceId: trace.id,
+      createdAt: now,
+    }, effects);
+  }
+
+  effects.push({ type: 'pressure_folded', zoneId: trace.zone });
+  return { ...world, zones: nextZones };
+}
+
+function guardZone(world, zoneId, trace, effects) {
+  const nextZones = world.zones.map((zone) => {
+    if (zone.id !== zoneId) return cloneZone(zone);
+    return {
+      ...cloneZone(zone),
+      guard: clamp01((Number(zone.guard) || 0) + 0.32),
+      pressure: clamp01(zone.pressure - 0.03),
+      clarity: clamp01(zone.clarity + 0.02),
+      fracture: clamp01((zone.fracture ?? 0) - 0.04),
+    };
+  });
+  effects.push({
+    type: 'zone_guarded',
+    zoneId,
+    strength: 0.32,
+    traceId: trace.id,
+  });
+  return { ...world, zones: nextZones };
+}
+
+function applyGuardToTrace(zone, trace) {
+  const guard = clamp01(Number(zone.guard) || 0);
+  if (guard <= 0) return trace;
+  return {
+    ...trace,
+    pressure: trace.pressure > 0 ? trace.pressure * (1 - guard * 0.48) : trace.pressure,
+    fracture: trace.fracture > 0 ? trace.fracture * (1 - guard * 0.54) : trace.fracture,
   };
 }
 
@@ -486,11 +816,119 @@ function getMove(id) {
   return move;
 }
 
-function cloneZone(zone) {
+function normalizeWorldState(worldState) {
+  if (!worldState || worldState.version !== HOLLOW_MARK_MODEL_VERSION) return worldState;
+  const fallback = createWorldState();
+  const incomingZones = Array.isArray(worldState.zones) ? worldState.zones : [];
+
   return {
+    ...fallback,
+    ...worldState,
+    pulse: worldState.pulse ?? fallback.pulse,
+    zones: fallback.zones.map((baseZone) => {
+      const zone = incomingZones.find((candidate) => candidate?.id === baseZone.id);
+      return normalizeZone(zone ?? baseZone, baseZone);
+    }),
+    relations: normalizeRelations(worldState.relations),
+    actionLog: Array.isArray(worldState.actionLog) ? worldState.actionLog : [],
+  };
+}
+
+function normalizeZone(zone, baseZone = zone) {
+  return {
+    ...baseZone,
     ...zone,
-    traces: [...zone.traces],
-    visibleMarks: [...zone.visibleMarks],
+    pressure: clamp01(Number(zone?.pressure ?? baseZone?.pressure) || 0),
+    clarity: clamp01(Number(zone?.clarity ?? baseZone?.clarity) || 0),
+    fracture: clamp01(Number(zone?.fracture ?? baseZone?.fracture) || 0),
+    guard: clamp01(Number(zone?.guard) || 0),
+    traces: normalizeTraces(zone?.traces),
+    visibleMarks: normalizeVisibleMarks(zone?.visibleMarks),
+  };
+}
+
+function normalizeRelations(relations) {
+  if (!Array.isArray(relations)) return [];
+  const zoneIds = new Set(ZONES.map((zone) => zone.id));
+  return relations
+    .filter((relation) => {
+      return relation
+        && ['echo', 'bend'].includes(relation.kind)
+        && zoneIds.has(relation.fromZoneId)
+        && zoneIds.has(relation.toZoneId)
+        && relation.fromZoneId !== relation.toZoneId;
+    })
+    .map((relation) => ({
+      id: relation.id ?? `relation:${relation.kind}:${relation.fromZoneId}:${relation.toZoneId}`,
+      kind: relation.kind,
+      fromZoneId: relation.fromZoneId,
+      toZoneId: relation.toZoneId,
+      strength: clamp01(Number(relation.strength) || 0),
+      stability: clamp01(Number(relation.stability) || 0.42),
+      createdBy: relation.createdBy ?? 'unknown',
+      traceId: relation.traceId ?? '',
+      createdAt: relation.createdAt ?? '',
+    }))
+    .filter((relation) => relation.strength > 0.04);
+}
+
+function normalizeTraces(traces) {
+  return Array.isArray(traces) ? [...traces] : [];
+}
+
+function normalizeVisibleMarks(visibleMarks) {
+  return Array.isArray(visibleMarks) ? [...visibleMarks] : [];
+}
+
+function decayRelations(relations) {
+  return normalizeRelations(relations)
+    .map((relation) => ({
+      ...relation,
+      strength: clamp01(relation.strength * 0.994),
+      stability: clamp01(relation.stability * 0.997),
+    }))
+    .filter((relation) => relation.strength > 0.055 && relation.stability > 0.08);
+}
+
+function countZoneRelations(worldState, zoneId) {
+  const world = normalizeWorldState(worldState);
+  return normalizeRelations(world?.relations)
+    .filter((relation) => relationTouchesZone(relation, zoneId) && relation.strength > 0.08)
+    .length;
+}
+
+function relationTouchesZone(relation, zoneId) {
+  return relation.fromZoneId === zoneId || relation.toZoneId === zoneId;
+}
+
+function chooseRelationTargetZone(worldState, zoneId) {
+  const world = normalizeWorldState(worldState);
+  return [...world.zones]
+    .filter((zone) => zone.id !== zoneId)
+    .sort((left, right) => {
+      const leftScore = left.pressure * 0.52 + (left.fracture ?? 0) * 0.28 + (1 - left.clarity) * 0.2;
+      const rightScore = right.pressure * 0.52 + (right.fracture ?? 0) * 0.28 + (1 - right.clarity) * 0.2;
+      return rightScore - leftScore;
+    })[0]?.id ?? '';
+}
+
+function chooseBendTargetZone(worldState, zoneId) {
+  const world = normalizeWorldState(worldState);
+  return [...world.zones]
+    .filter((zone) => zone.id !== zoneId)
+    .sort((left, right) => {
+      const leftScore = (1 - left.clarity) * 0.5 + left.pressure * 0.3 + (left.fracture ?? 0) * 0.2;
+      const rightScore = (1 - right.clarity) * 0.5 + right.pressure * 0.3 + (right.fracture ?? 0) * 0.2;
+      return rightScore - leftScore;
+    })[0]?.id ?? '';
+}
+
+function cloneZone(zone) {
+  const normalized = normalizeZone(zone);
+  return {
+    ...normalized,
+    traces: normalizeTraces(normalized.traces),
+    visibleMarks: normalizeVisibleMarks(normalized.visibleMarks),
   };
 }
 

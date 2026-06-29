@@ -328,6 +328,7 @@ async function readSurfaceState(page) {
       consequenceCount: document.querySelectorAll('.consequence-strip').length,
       chronicleCount: document.querySelectorAll('.chronicle-event').length,
       creatorStatCount: document.querySelectorAll('.creator-grid div').length,
+      relationRowCount: document.querySelectorAll('.relation-row').length,
       signalCount: document.querySelectorAll('.signal-grid span').length,
       zoneRows: document.querySelectorAll('.surface-zone').length,
     };
@@ -633,7 +634,7 @@ function evaluateAppShellGates(failures, appShell) {
   assertGate(failures, Number(appShell.shell.visibleTraceCount) >= 1, `app shell visible trace text is ${appShell.shell.visibleTraceCount}`);
   assertGate(failures, appShell.chronicleSurface.view === 'chronicle', `chronicle surface view is ${appShell.chronicleSurface.view}`);
   assertGate(failures, appShell.creatorSurface.view === 'creator', `creator surface view is ${appShell.creatorSurface.view}`);
-  assertGate(failures, appShell.creatorSurface.creatorStatCount === 3, `creator surface stat count is ${appShell.creatorSurface.creatorStatCount}`);
+  assertGate(failures, appShell.creatorSurface.creatorStatCount === 6, `creator surface stat count is ${appShell.creatorSurface.creatorStatCount}`);
   assertGate(failures, appShell.creatorSurface.signalCount === 4, `creator surface signal count is ${appShell.creatorSurface.signalCount}`);
   assertGate(failures, appShell.worldSurface.view === 'world', `world surface view is ${appShell.worldSurface.view}`);
   assertGate(failures, appShell.worldSurface.metricCount === 3, `world surface metric count is ${appShell.worldSurface.metricCount}`);

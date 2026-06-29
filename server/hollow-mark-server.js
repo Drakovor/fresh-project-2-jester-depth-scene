@@ -14,6 +14,7 @@ import {
   createWorldState,
   describeMaskShape,
   describeMoveForecast,
+  describeWorldRelations,
   describeWorldZones,
   getPlayableSummary,
 } from '../src/domain/hollow-mark-core.js';
@@ -115,6 +116,17 @@ async function routeApi(req, res, url) {
     sendJson(res, 200, {
       zones: describeWorldZones(store.world),
       source: 'hollow-mark-world',
+      tick: store.world.tick,
+    });
+    return;
+  }
+
+  if (url.pathname === '/api/world/relations' && req.method === 'GET') {
+    const store = await readStore();
+    const relations = describeWorldRelations(store.world);
+    sendJson(res, 200, {
+      relations,
+      count: relations.length,
       tick: store.world.tick,
     });
     return;
@@ -435,6 +447,7 @@ function createSessionPayload(store, session) {
     selectedZoneState: describeWorldZones(store.world).find((zone) => zone.id === session.selectedZone),
     moveForecast,
     lastTrace: session.lastTrace,
+    relations: describeWorldRelations(store.world),
     chronicle: store.chronicle.filter((event) => event.publicVisibility).slice(-20).reverse(),
     ledger: createSessionLedger(store, session.id).slice(0, 20),
     consequenceSummary: createConsequenceSummary(store),
@@ -448,6 +461,7 @@ function createPublicWorldPayload(store) {
     world: store.world,
     summary: getPlayableSummary(store.world),
     zones: describeWorldZones(store.world),
+    relations: describeWorldRelations(store.world),
     chronicle: store.chronicle.filter((event) => event.publicVisibility).slice(-20).reverse(),
     ledger: createPublicLedger(store).slice(0, 20),
     consequenceSummary: createConsequenceSummary(store),
@@ -467,12 +481,14 @@ function createCreatorOverviewPayload(store) {
     .sort((left, right) => right.intensity - left.intensity)
     .slice(0, 3);
   const visibleTraceCount = store.world.zones.reduce((total, zone) => total + zone.visibleMarks.length, 0);
+  const relations = describeWorldRelations(store.world);
 
   return {
     modelVersion: HOLLOW_MARK_MODEL_VERSION,
     summary: getPlayableSummary(store.world),
     pressureLeaders,
     zoneState,
+    relations,
     chronicle: store.chronicle.filter((event) => event.publicVisibility).slice(-12).reverse(),
     consequenceSummary: createConsequenceSummary(store),
     sessions: {
@@ -498,6 +514,8 @@ function createCreatorOverviewPayload(store) {
       chronicleCount: store.chronicle.length,
       actionCount: store.ledger.length,
       publicActionCount: store.ledger.filter((action) => action.publicVisibility).length,
+      relationCount: relations.length,
+      guardedZoneCount: zoneState.filter((zone) => zone.guard > 0.08).length,
       snapshotCount: store.snapshots.length,
     },
     recentActions: createCreatorLedger(store).slice(0, 8),
@@ -509,6 +527,7 @@ function createBeforeMoveContext(store, session, zoneId) {
   return {
     summary: getPlayableSummary(store.world),
     zone: describeWorldZones(store.world).find((candidate) => candidate.id === zoneId),
+    relations: describeWorldRelations(store.world),
     maskShape: describeMaskShape(session.mask),
   };
 }
@@ -620,9 +639,94 @@ function appendChronicle(store, session, trace, now, beforeMove) {
     }));
   }
 
+  events.push(...createWorldEffectEvents({
+    effects: trace.worldEffects ?? [],
+    trace,
+    session,
+    now,
+    afterSummary,
+    afterZone,
+  }));
+
   store.chronicle.push(...events);
   if (store.chronicle.length > 180) store.chronicle = store.chronicle.slice(-180);
   return events;
+}
+
+function createWorldEffectEvents({ effects, trace, session, now, afterSummary, afterZone }) {
+  return effects
+    .filter((effect) => ['relation_bound', 'relation_deepened', 'relation_severed', 'pressure_bent', 'zone_guarded'].includes(effect.type))
+    .map((effect) => {
+      const eventConfig = createWorldEffectEventConfig(effect);
+      return createChronicleEvent({
+        eventType: effect.type,
+        zoneId: trace.zone,
+        maskId: session.mask.id,
+        traceId: trace.id,
+        moveId: trace.move,
+        title: eventConfig.title,
+        body: eventConfig.body,
+        publicVisibility: true,
+        severity: eventConfig.severity,
+        now,
+        pulse: afterSummary.pulse,
+        zoneState: afterZone?.state,
+      });
+    });
+}
+
+function createWorldEffectEventConfig(effect) {
+  if (effect.type === 'relation_bound') {
+    if (effect.kind === 'bend') {
+      return {
+        title: 'Bend channel formed',
+        body: `${labelZone(effect.fromZoneId)} can now redirect pressure toward ${labelZone(effect.toZoneId)}.`,
+        severity: 'sharp',
+      };
+    }
+    return {
+      title: 'Echo link formed',
+      body: `${labelZone(effect.fromZoneId)} now carries pressure toward ${labelZone(effect.toZoneId)}.`,
+      severity: 'signal',
+    };
+  }
+  if (effect.type === 'relation_deepened') {
+    if (effect.kind === 'bend') {
+      return {
+        title: 'Bend channel deepened',
+        body: `${labelZone(effect.fromZoneId)} bends more tension toward ${labelZone(effect.toZoneId)}.`,
+        severity: 'sharp',
+      };
+    }
+    return {
+      title: 'Echo link deepened',
+      body: `${labelZone(effect.fromZoneId)} and ${labelZone(effect.toZoneId)} answer each other more strongly.`,
+      severity: 'signal',
+    };
+  }
+  if (effect.type === 'relation_severed') {
+    return {
+      title: 'Echo link cut',
+      body: `${labelZone(effect.fromZoneId)} stopped carrying pressure toward ${labelZone(effect.toZoneId)}.`,
+      severity: 'sharp',
+    };
+  }
+  if (effect.type === 'pressure_bent') {
+    return {
+      title: 'Pressure redirected',
+      body: `${labelZone(effect.fromZoneId)} bent part of its tension toward ${labelZone(effect.toZoneId)}.`,
+      severity: 'sharp',
+    };
+  }
+  return {
+    title: 'Zone guard raised',
+    body: `${labelZone(effect.zoneId)} gained protection against the next pressure line.`,
+    severity: 'signal',
+  };
+}
+
+function labelZone(zoneId) {
+  return ZONES.find((zone) => zone.id === zoneId)?.label ?? zoneId ?? 'Unknown zone';
 }
 
 function createChronicleEvent({
