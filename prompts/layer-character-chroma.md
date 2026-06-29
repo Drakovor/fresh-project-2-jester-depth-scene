@@ -1,0 +1,12 @@
+Use case: stylized-concept
+Asset type: Separate character layer for a premium interactive WebGL scene, generated for local chroma-key background removal
+Primary request: Create one adult feminine wicked jester character as a clean isolated full-body/three-quarter premium asset. She must be elegant, seductive, powerful, mysterious, lonely, and feminine, not ridiculous, festive, theatrical, royal, medieval, or cartoonish.
+Scene/backdrop: Perfectly flat solid #00ff00 chroma-key background for local background removal. The background must be one uniform color with no shadows, gradients, texture, reflections, floor plane, or lighting variation.
+Subject: One adult feminine jester, calm dominant confidence, direct gaze, subtle dangerous smile, high-fashion wicked street-couture with asymmetry, refined diamond motifs, dark velvet and satin details, fine metal tips and jewelry. Clear face and eyes for later micro-animation. No male version.
+Style/medium: Ultra-detailed dark premium high-fashion character concept art, cinematic illustration, realistic material detail, polished AAA key art quality.
+Composition/framing: Portrait 2160x3840, full body or elegant three-quarter body visible, centered, generous padding around hair, costume, hands, and fabric edges. Pose must be graceful and stable, not acrobatic. Keep both eyes visible and readable.
+Lighting/mood: Lighting on subject compatible with deep purple underground ambience and warm orange rim light, but no cast shadow on the green background.
+Color palette: Deep purple, blackened burgundy, copper/orange accents, ivory skin tones if visible, no green anywhere in the character because green is reserved for chroma key removal.
+Materials/textures: Velvet, satin, lace, embroidered diamond motifs, brushed copper jewelry, fine leather, soft fabric folds.
+Constraints: No text, no watermark, no logo, no second character, no dragon, no monster fusion, no male character, no childlike features, no explicit nudity, no gore, no red clown nose, no childish makeup, no performance-venue visuals, no monarchic visuals, no sacred visuals, no medieval visuals, no sorcerer/wizard visuals, no crown, no throne styling, no stage costume, no cheap festive colors, no deformed anatomy, no malformed hands, no malformed face, no extra limbs.
+Avoid: cliché clown, goofy expression, horror gore, plastic costume, distorted hands, distorted face, unreadable eyes, oversaturated neon, green clothing or green reflections, royal costume, theater costume, medieval fantasy sorceress.

@@ -1,0 +1,58 @@
+{
+  "project": "fresh project 2",
+  "source_boundary": "Only assets generated for this workspace are used by the app.",
+  "art_direction": "Adult feminine wicked jester, elegant and seductive without performance cliche, deep purple personal underworld, no dragon in first scene, no performance venue, no monarchic setting, no sacred setting, no medieval sorcerer setting, no cathedral/church architecture, no theater/stage framing.",
+  "layering_strategy": "Generated background and character are separate assets. Motion, foreground haze, lighting, parallax, depth and eye/cloth micro-movement are produced by the WebGL app.",
+  "runtime_visual_system": {
+    "camera": "Constrained single-axis cardinal rail with left/right and up/down reveal, no free 360 orbit; diagonal cursor input resolves to one rail only with zero visible cross-axis leak.",
+    "anchoring": "Character feet are projected from a background-layer point at the center floor circle.",
+    "cardinal_reveal": "Code-generated reveal shutters, side glints, top wires, and floor sheens follow the same camera axis, adding left/right/up/down discovery without moving the character.",
+    "peripheral_focus": "Code-generated optical aperture threads and depth ellipses reinforce an entering-the-space sensation while keeping the central character and floor anchor clear.",
+    "volumetric_depth": "Axis-bound slit haze and fine luminous cuts add atmospheric depth while avoiding stage lighting, sacred rays, or character-lane clutter.",
+    "threshold_lens": "Code-generated floor and air depth lines around the central circle create a private threshold feeling without sacred, stage, royal, or medieval symbols.",
+    "presence_memory": "A code-generated non-UI directional trace lets the room remember exploration subtly, forming a future concept seed without badges, rewards, quests, or streamer overlays.",
+    "subject_matte": "A blurred negative-fill matte behind the generated character sculpts premium subject clarity without becoming a black halo or stage spotlight.",
+    "contact_reflection": "A subtle mirrored reflection of the generated character texture is compressed into the floor plane and follows the projected foot anchor for premium grounding.",
+    "character_rim": "Subtle dual-tone blurred copies of the generated character texture sit behind the main sprite for premium silhouette separation without changing pose or anatomy.",
+    "procedural_quality": "Ambient particles, cloth, haze, sparks, glass marks, living wall/floor signals, and signature floor circuits use named deterministic seeds.",
+    "living_signals": "Subtle pistachio/orange/purple room-language marks animate on side structures and the floor anchor, reinforcing an awake private universe without UI, carnival, theater, royal, sacred, or medieval motifs.",
+    "cinematic_clarity": "Code-generated foreground occlusion and floor gleam reinforce depth, contact, and premium readability while staying behind the character.",
+    "idle_motion": "A code-generated room-breath field animates vanishing-point ribs, floor pulses, and tiny signal sparks so the scene stays alive even with no cursor movement.",
+    "clarity_lane": "A code-generated compositing mask enriches side/depth atmosphere while cutting a clean central lane around the subject and floor anchor.",
+    "source_policy": "Runtime effects are generated in code inside this project; no external runtime assets are required."
+  },
+  "generated_at": "2026-06-28",
+  "assets": [
+    {
+      "role": "background",
+      "path": "public/assets/jester-depth-background-4k.png",
+      "source": "output/imagegen/jester-depth-background-4k.png",
+      "prompt": "prompts/layer-background.md",
+      "model": "gpt-image-2",
+      "quality": "high",
+      "size": "3840x2160",
+      "sha256": "7aefdad6ae59b52055a3b3002fd8cabc5a955b27445bbfcfa8c893e834db1dd9"
+    },
+    {
+      "role": "character",
+      "path": "public/assets/jester-feminine-character.png",
+      "source": "output/imagegen/jester-feminine-character.png",
+      "prompt": "prompts/layer-character-chroma.md",
+      "model": "gpt-image-2",
+      "quality": "high",
+      "size": "2160x3840",
+      "postprocess": "remove_chroma_key.py",
+      "sha256": "5466ca2b6eeb801416b2357925e9196b79aede3b55018c2a6849f18cdd48682f"
+    },
+    {
+      "role": "foreground",
+      "path": "public/assets/jester-depth-foreground-4k.png",
+      "source": "output/imagegen/jester-depth-foreground-4k.png",
+      "prompt": "prompts/layer-foreground.md",
+      "model": "gpt-image-2",
+      "quality": "high",
+      "size": "3840x2160",
+      "sha256": "fc8d406804a73d4d94d7ea07084525f250a0806d8e484fc4dda0d5ca3835eee8"
+    }
+  ]
+}

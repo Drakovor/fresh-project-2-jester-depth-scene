@@ -1,0 +1,21 @@
+{
+  "name": "fresh-project-2-jester-depth-scene",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "vite build",
+    "generate:images": "bash scripts/generate-images.sh",
+    "visual:check": "node scripts/visual-check.mjs",
+    "preview": "vite preview --host 127.0.0.1"
+  },
+  "dependencies": {
+    "pixi.js": "^7.4.3"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.61.1",
+    "pngjs": "^7.0.0",
+    "vite": "^7.0.0"
+  }
+}
