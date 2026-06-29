@@ -226,28 +226,55 @@ export function getPlayableSummary(worldState) {
 
 export function describeWorldZones(worldState) {
   return worldState.zones.map((zone) => {
-    const pressure = clamp01(Number(zone.pressure) || 0);
-    const clarity = clamp01(Number(zone.clarity) || 0);
-    const fracture = clamp01(Number(zone.fracture) || 0);
-    const visibleTraceCount = Array.isArray(zone.visibleMarks) ? zone.visibleMarks.length : 0;
-    const intensity = clamp01(
-      pressure * 0.48
-        + fracture * 0.24
-        + (1 - clarity) * 0.18
-        + Math.min(visibleTraceCount, 4) * 0.08,
-    );
-
-    return {
-      id: zone.id,
-      label: zone.label,
-      pressure,
-      clarity,
-      fracture,
-      visibleTraceCount,
-      state: chooseZoneState({ pressure, clarity, fracture, visibleTraceCount, intensity }),
-      intensity,
-    };
+    return describeZoneProjection(zone, {
+      visibleTraceCount: Array.isArray(zone.visibleMarks) ? zone.visibleMarks.length : 0,
+    });
   });
+}
+
+export function describeMoveForecast(worldState, maskState, moveId, zoneId) {
+  assertCompatible(worldState, maskState);
+
+  const move = getMove(moveId);
+  const drive = getDrive(maskState.drive);
+  const zone = worldState.zones.find((candidate) => candidate.id === zoneId);
+  if (!zone) throw new Error(`Unknown zone: ${zoneId}`);
+
+  const trace = createTrace({ move, drive, zone, mask: maskState, now: 'forecast' });
+  const visibleTraceCount = Array.isArray(zone.visibleMarks) ? zone.visibleMarks.length : 0;
+  const nextVisibleTraceCount = visibleTraceCount + (trace.visibility >= 0.14 ? 1 : 0);
+  const nextZone = describeZoneProjection(zone, {
+    pressure: clamp01(zone.pressure + trace.pressure),
+    clarity: clamp01(zone.clarity + trace.clarity),
+    fracture: clamp01((zone.fracture ?? 0) + trace.fracture),
+    visibleTraceCount: nextVisibleTraceCount,
+  });
+  const risk = clamp01(
+    trace.fracture * 2.1
+      + Math.max(nextZone.pressure - nextZone.clarity, 0) * 0.34
+      + Math.max(move.cost - maskState.will, 0) * 0.12,
+  );
+  const signal = trace.visibility >= 0.2
+    ? 'visible'
+    : trace.visibility >= 0.1
+      ? 'veiled'
+      : 'buried';
+
+  return {
+    moveId: move.id,
+    moveLabel: move.label,
+    zoneId: zone.id,
+    zoneLabel: zone.label,
+    pressureDelta: trace.pressure,
+    clarityDelta: trace.clarity,
+    visibilityDelta: trace.visibility,
+    fractureDelta: trace.fracture,
+    risk,
+    signal,
+    cost: move.cost,
+    canAfford: maskState.will >= move.cost,
+    nextZone,
+  };
 }
 
 export function describeMaskShape(maskState) {
@@ -272,6 +299,30 @@ function chooseZoneState({ pressure, clarity, fracture, visibleTraceCount, inten
   if (pressure >= 0.64 || intensity >= 0.58) return 'pressured';
   if (clarity >= 0.52) return 'listening';
   return 'veiled';
+}
+
+function describeZoneProjection(zone, overrides = {}) {
+  const pressure = clamp01(Number(overrides.pressure ?? zone.pressure) || 0);
+  const clarity = clamp01(Number(overrides.clarity ?? zone.clarity) || 0);
+  const fracture = clamp01(Number(overrides.fracture ?? zone.fracture) || 0);
+  const visibleTraceCount = Number(overrides.visibleTraceCount ?? (Array.isArray(zone.visibleMarks) ? zone.visibleMarks.length : 0)) || 0;
+  const intensity = clamp01(
+    pressure * 0.48
+      + fracture * 0.24
+      + (1 - clarity) * 0.18
+      + Math.min(visibleTraceCount, 4) * 0.08,
+  );
+
+  return {
+    id: zone.id,
+    label: zone.label,
+    pressure,
+    clarity,
+    fracture,
+    visibleTraceCount,
+    state: chooseZoneState({ pressure, clarity, fracture, visibleTraceCount, intensity }),
+    intensity,
+  };
 }
 
 function createTrace({ move, drive, zone, mask, now }) {

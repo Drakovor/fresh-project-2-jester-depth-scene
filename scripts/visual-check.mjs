@@ -246,6 +246,9 @@ async function checkAppShell(browser, consoleMessages) {
     await page.click('[data-zone="pistachio-static"]');
     await page.waitForTimeout(420);
     const zoneSelected = await readSceneState(page, 'app-shell-zone-selected');
+    await page.click('[data-move="sever"]');
+    await page.waitForTimeout(420);
+    const moveSelected = await readSceneState(page, 'app-shell-move-selected');
     await page.click('.commit-move');
     await page.waitForTimeout(700);
     const afterMove = await readSceneState(page, 'app-shell-after-move');
@@ -253,12 +256,17 @@ async function checkAppShell(browser, consoleMessages) {
       const dock = document.querySelector('.presence-dock');
       const panel = document.querySelector('.hollow-panel');
       const selectedZone = document.querySelector('.zone-choice[aria-selected="true"]');
+      const selectedMove = document.querySelector('.move-choice[aria-pressed="true"]');
+      const movePreview = document.querySelector('.move-preview');
       return {
         dockOpen: dock?.dataset.open,
         dockPhase: dock?.dataset.phase,
         hollowOpen: panel?.dataset.open,
         selectedZone: selectedZone?.dataset.zone,
         selectedZoneState: selectedZone?.dataset.state,
+        selectedMove: selectedMove?.dataset.move,
+        previewSignal: movePreview?.dataset.signal,
+        previewNextState: movePreview?.dataset.nextState,
         hollowTick: document.querySelector('.hollow-toggle b')?.textContent,
         visibleTraceCount: document.querySelector('.trace-head b')?.textContent,
         selectedPressed: document.querySelector('[data-presence="defiance"]')?.getAttribute('aria-pressed'),
@@ -280,6 +288,7 @@ async function checkAppShell(browser, consoleMessages) {
       initial,
       selected,
       zoneSelected,
+      moveSelected,
       afterMove,
       restored,
       shell,
@@ -464,6 +473,13 @@ function evaluateQualityGates(report) {
       assertGate(failures, sample.zoneLoomAlpha >= 0 && sample.zoneLoomAlpha <= 0.17, `${name}/${sample.sample}: zone loom alpha out of range (${sample.zoneLoomAlpha})`);
       assertGate(failures, sample.zoneLoomIntensity >= 0 && sample.zoneLoomIntensity <= 1, `${name}/${sample.sample}: zone loom intensity out of range (${sample.zoneLoomIntensity})`);
       assertGate(failures, sample.zoneLoomHotCount >= 0 && sample.zoneLoomHotCount <= 3, `${name}/${sample.sample}: zone loom hot count out of range (${sample.zoneLoomHotCount})`);
+      assertGate(failures, sample.moveForecastMode === 'diegetic-move-consequence-preview', `${name}/${sample.sample}: move forecast mode is ${sample.moveForecastMode}`);
+      assertGate(failures, sample.moveForecastAxis === sample.cameraAxis, `${name}/${sample.sample}: move forecast axis ${sample.moveForecastAxis} does not match camera ${sample.cameraAxis}`);
+      assertGate(failures, ['mark', 'veil', 'bind', 'sever', 'expose', 'bend', 'spare'].includes(sample.moveForecastMove), `${name}/${sample.sample}: move forecast move is ${sample.moveForecastMove}`);
+      assertGate(failures, ['visible', 'veiled', 'buried'].includes(sample.moveForecastSignal), `${name}/${sample.sample}: move forecast signal is ${sample.moveForecastSignal}`);
+      assertGate(failures, ['veiled', 'listening', 'pressured', 'fractured', 'opened'].includes(sample.moveForecastNextState), `${name}/${sample.sample}: move forecast next state is ${sample.moveForecastNextState}`);
+      assertGate(failures, sample.moveForecastRisk >= 0 && sample.moveForecastRisk <= 1, `${name}/${sample.sample}: move forecast risk out of range (${sample.moveForecastRisk})`);
+      assertGate(failures, sample.moveForecastAlpha >= 0 && sample.moveForecastAlpha <= 0.145, `${name}/${sample.sample}: move forecast alpha out of range (${sample.moveForecastAlpha})`);
       assertGate(failures, sample.maskResonanceMode === 'pose-locked-hollow-mask-resonance', `${name}/${sample.sample}: mask resonance mode is ${sample.maskResonanceMode}`);
       assertGate(failures, ['softness', 'defiance', 'pride', 'static', 'unformed'].includes(sample.maskResonanceDrive), `${name}/${sample.sample}: mask resonance drive is ${sample.maskResonanceDrive}`);
       assertGate(failures, ['veiled', 'lifted', 'offset', 'forward-leaning', 'split-crest', 'split', 'unformed'].includes(sample.maskResonanceSilhouette), `${name}/${sample.sample}: mask resonance silhouette is ${sample.maskResonanceSilhouette}`);
@@ -558,6 +574,11 @@ function evaluateAppShellGates(failures, appShell) {
   assertGate(failures, appShell.zoneSelected.zoneLoomActive === 'pistachio-static', `zone loom active after zone select is ${appShell.zoneSelected.zoneLoomActive}`);
   assertGate(failures, appShell.zoneSelected.zoneLoomState === 'pressured', `zone loom state after zone select is ${appShell.zoneSelected.zoneLoomState}`);
   assertGate(failures, appShell.zoneSelected.zoneLoomIntensity >= appShell.selected.zoneLoomIntensity, `zone loom intensity did not rise after zone select (${appShell.selected.zoneLoomIntensity} -> ${appShell.zoneSelected.zoneLoomIntensity})`);
+  assertGate(failures, appShell.zoneSelected.moveForecastMove === 'mark', `move forecast before move select is ${appShell.zoneSelected.moveForecastMove}`);
+  assertGate(failures, appShell.moveSelected.moveForecastMove === 'sever', `move forecast after move select is ${appShell.moveSelected.moveForecastMove}`);
+  assertGate(failures, appShell.moveSelected.moveForecastSignal === 'visible', `move forecast signal after move select is ${appShell.moveSelected.moveForecastSignal}`);
+  assertGate(failures, appShell.moveSelected.moveForecastNextState === 'pressured', `move forecast next state after move select is ${appShell.moveSelected.moveForecastNextState}`);
+  assertGate(failures, appShell.moveSelected.moveForecastRisk > appShell.zoneSelected.moveForecastRisk, `move forecast risk did not rise after sever (${appShell.zoneSelected.moveForecastRisk} -> ${appShell.moveSelected.moveForecastRisk})`);
   assertGate(failures, appShell.afterMove.hollowMarkTick >= 1, `app shell hollow mark tick did not advance (${appShell.afterMove.hollowMarkTick})`);
   assertGate(failures, appShell.afterMove.hollowMarkVisibleTraces >= 1, `app shell visible traces did not advance (${appShell.afterMove.hollowMarkVisibleTraces})`);
   assertGate(failures, appShell.afterMove.zoneLoomActive === 'pistachio-static', `zone loom active after move is ${appShell.afterMove.zoneLoomActive}`);
@@ -570,6 +591,9 @@ function evaluateAppShellGates(failures, appShell) {
   assertGate(failures, appShell.shell.hollowOpen === 'true', `app shell hollow panel open is ${appShell.shell.hollowOpen}`);
   assertGate(failures, appShell.shell.selectedZone === 'pistachio-static', `app shell selected zone is ${appShell.shell.selectedZone}`);
   assertGate(failures, appShell.shell.selectedZoneState === 'pressured', `app shell selected zone state is ${appShell.shell.selectedZoneState}`);
+  assertGate(failures, appShell.shell.selectedMove === 'sever', `app shell selected move is ${appShell.shell.selectedMove}`);
+  assertGate(failures, appShell.shell.previewSignal === 'visible', `app shell preview signal is ${appShell.shell.previewSignal}`);
+  assertGate(failures, appShell.shell.previewNextState === 'fractured', `app shell preview next state is ${appShell.shell.previewNextState}`);
   assertGate(failures, Number(appShell.shell.hollowTick) >= 1, `app shell hollow tick text is ${appShell.shell.hollowTick}`);
   assertGate(failures, Number(appShell.shell.visibleTraceCount) >= 1, `app shell visible trace text is ${appShell.shell.visibleTraceCount}`);
   assertGate(failures, Number(appShell.shell.thresholdLevel) >= 0.66, `app shell threshold level too low (${appShell.shell.thresholdLevel})`);
@@ -736,6 +760,13 @@ async function readSceneState(page, sample) {
       zoneLoomAlpha: Number(document.body.dataset.zoneLoomAlpha),
       zoneLoomIntensity: Number(document.body.dataset.zoneLoomIntensity),
       zoneLoomHotCount: Number(document.body.dataset.zoneLoomHotCount),
+      moveForecastMode: document.body.dataset.moveForecastMode,
+      moveForecastAxis: document.body.dataset.moveForecastAxis,
+      moveForecastMove: document.body.dataset.moveForecastMove,
+      moveForecastSignal: document.body.dataset.moveForecastSignal,
+      moveForecastNextState: document.body.dataset.moveForecastNextState,
+      moveForecastRisk: Number(document.body.dataset.moveForecastRisk),
+      moveForecastAlpha: Number(document.body.dataset.moveForecastAlpha),
       maskResonanceMode: document.body.dataset.maskResonanceMode,
       maskResonanceDrive: document.body.dataset.maskResonanceDrive,
       maskResonanceSilhouette: document.body.dataset.maskResonanceSilhouette,

@@ -118,6 +118,20 @@ Selecting a zone should alter the scene before a player commits a move. A move t
 
 This keeps the map feeling like the place is becoming readable, instead of turning the product into a normal quest board.
 
+## Move Forecast
+
+Mystery must never hide the basic consequence of pressing a button. Before a player commits a move, Hollow Mark should forecast:
+
+- expected pressure change
+- expected clarity change
+- fracture risk
+- whether the trace will likely be buried, veiled, or visible
+- the selected zone's likely next state
+
+The forecast should be felt first in the room material: zone pressure lines, floor tension, altered reflection, or subtle Mask resonance. The UI may summarize it, but the scene must carry the weight.
+
+This is how the app stays readable without becoming a standard tutorial panel, quest board, or streamer action menu.
+
 ## Player Identity
 
 A Mask is built from tension, not from a standard RPG class.

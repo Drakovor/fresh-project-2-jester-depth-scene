@@ -77,6 +77,9 @@ const state = {
     selectedZone: 'threshold-floor',
     selectedZoneState: 'listening',
     selectedZoneIntensity: 0.34,
+    selectedMove: 'mark',
+    open: false,
+    moveForecast: null,
     hotZones: [],
     zones: [],
   },
@@ -254,6 +257,9 @@ midLayer.addChild(hollowWorldTrace.graphics);
 
 const zoneLoom = makeZoneLoomSystem();
 midLayer.addChild(zoneLoom.graphics);
+
+const moveForecast = makeMoveForecastSystem();
+midLayer.addChild(moveForecast.graphics);
 midLayer.addChild(centralGlow);
 
 const cursorLight = new Sprite(textures.torch);
@@ -512,7 +518,9 @@ function syncHollowMarkState(detail) {
   state.hollow.maskFacets = Array.isArray(maskShape.dominantFacets)
     ? maskShape.dominantFacets.filter((facet) => typeof facet === 'string').slice(0, 2)
     : [];
+  state.hollow.open = detail.open === true;
   state.hollow.selectedZone = typeof detail.selectedZone === 'string' ? detail.selectedZone : 'threshold-floor';
+  state.hollow.selectedMove = typeof detail.selectedMove === 'string' ? detail.selectedMove : 'mark';
   state.hollow.hotZones = Array.isArray(detail.summary?.hotZones)
     ? detail.summary.hotZones.filter((zoneId) => typeof zoneId === 'string').slice(0, 3)
     : [];
@@ -524,6 +532,7 @@ function syncHollowMarkState(detail) {
     ?? null;
   state.hollow.selectedZoneState = selectedZone?.state ?? 'veiled';
   state.hollow.selectedZoneIntensity = clamp(Number(selectedZone?.intensity) || 0, 0, 1);
+  state.hollow.moveForecast = normalizeMoveForecast(detail.moveForecast);
 }
 
 function normalizeZoneLoomItem(zone) {
@@ -537,6 +546,26 @@ function normalizeZoneLoomItem(zone) {
     visibleTraceCount: Number(zone.visibleTraceCount) || 0,
     state: typeof zone.state === 'string' ? zone.state : 'veiled',
     intensity: clamp(Number(zone.intensity) || 0, 0, 1),
+  };
+}
+
+function normalizeMoveForecast(forecast) {
+  if (!forecast || typeof forecast.zoneId !== 'string') return null;
+  const nextZone = normalizeZoneLoomItem(forecast.nextZone);
+  return {
+    moveId: typeof forecast.moveId === 'string' ? forecast.moveId : 'mark',
+    moveLabel: typeof forecast.moveLabel === 'string' ? forecast.moveLabel : forecast.moveId ?? 'mark',
+    zoneId: forecast.zoneId,
+    zoneLabel: typeof forecast.zoneLabel === 'string' ? forecast.zoneLabel : forecast.zoneId,
+    pressureDelta: clamp(Number(forecast.pressureDelta) || 0, -0.35, 0.35),
+    clarityDelta: clamp(Number(forecast.clarityDelta) || 0, -0.35, 0.35),
+    visibilityDelta: clamp(Number(forecast.visibilityDelta) || 0, 0, 1),
+    fractureDelta: clamp(Number(forecast.fractureDelta) || 0, 0, 1),
+    risk: clamp(Number(forecast.risk) || 0, 0, 1),
+    signal: typeof forecast.signal === 'string' ? forecast.signal : 'buried',
+    cost: Number(forecast.cost) || 0,
+    canAfford: forecast.canAfford !== false,
+    nextZone,
   };
 }
 
@@ -639,6 +668,7 @@ function animateScene(dt) {
   presenceTrace.update(t, w, h, lookX, lookY, orbit.axis, breathe, slowPulse);
   hollowWorldTrace.update(t, w, h, lookX, lookY, orbit.axis, breathe, slowPulse, state.hollow, portraitFactor);
   zoneLoom.update(t, w, h, lookX, lookY, orbit.axis, breathe, slowPulse, state.hollow, portraitFactor);
+  moveForecast.update(t, w, h, lookX, lookY, orbit.axis, breathe, slowPulse, state.hollow, portraitFactor);
   edgeGrade.alpha = 0.62 + breathe * 0.05;
   clarityLane.position.set(w * 0.5 + lookX * w * 0.01, h * 0.5 + lookY * h * 0.006);
   clarityLane.scale.set(clarityLane.baseScale * (1.002 + Math.abs(lookX) * 0.006));
@@ -753,6 +783,13 @@ function animateScene(dt) {
   document.body.dataset.zoneLoomAlpha = zoneLoom.alpha.toFixed(3);
   document.body.dataset.zoneLoomIntensity = zoneLoom.intensity.toFixed(3);
   document.body.dataset.zoneLoomHotCount = String(zoneLoom.hotCount);
+  document.body.dataset.moveForecastMode = 'diegetic-move-consequence-preview';
+  document.body.dataset.moveForecastAxis = orbit.axis;
+  document.body.dataset.moveForecastMove = moveForecast.moveId;
+  document.body.dataset.moveForecastSignal = moveForecast.signal;
+  document.body.dataset.moveForecastNextState = moveForecast.nextState;
+  document.body.dataset.moveForecastRisk = moveForecast.risk.toFixed(3);
+  document.body.dataset.moveForecastAlpha = moveForecast.alpha.toFixed(3);
   document.body.dataset.maskResonanceMode = 'pose-locked-hollow-mask-resonance';
   document.body.dataset.maskResonanceDrive = maskResonance.drive;
   document.body.dataset.maskResonanceSilhouette = maskResonance.silhouette;
@@ -3299,6 +3336,148 @@ function getZoneLoomColor(zone, activeState) {
 function getZoneStateColor(state) {
   if (state === 'fractured' || state === 'pressured') return 0xffa25d;
   if (state === 'opened') return 0xbcffb0;
+  return 0x9d63e5;
+}
+
+function makeMoveForecastSystem() {
+  const graphics = new Graphics();
+  graphics.blendMode = BLEND_MODES.ADD;
+  const rng = createRng('diegetic-move-consequence-preview');
+  const cuts = Array.from({ length: 18 }, (_, index) => ({
+    phase: randRange(rng, 0, Math.PI * 2),
+    offset: randRange(rng, -0.18, 0.18),
+    depth: randRange(rng, 0.28, 1),
+    side: index % 2 === 0 ? -1 : 1,
+    width: randRange(rng, 0.42, 0.95),
+  }));
+
+  return {
+    graphics,
+    alpha: 0,
+    risk: 0,
+    moveId: 'mark',
+    signal: 'buried',
+    nextState: 'listening',
+    update(t, w, h, lookX, lookY, axis, breathe, slowPulse, hollow, portraitFactor) {
+      const forecast = hollow?.moveForecast;
+      const hasForecast = forecast && forecast.nextZone;
+      const risk = clamp(Number(forecast?.risk) || 0, 0, 1);
+      const visibility = clamp(Number(forecast?.visibilityDelta) || 0, 0, 1);
+      const fracture = clamp(Number(forecast?.fractureDelta) || 0, 0, 1);
+      const openWeight = hollow?.open ? 1 : 0.36;
+      const forecastEnergy = hasForecast
+        ? clamp(visibility * 0.34 + risk * 0.38 + fracture * 0.34 + openWeight * 0.12, 0, 1)
+        : 0;
+      const targetAlpha = hasForecast
+        ? clamp(0.018 + forecastEnergy * 0.12 + slowPulse * 0.006, 0, 0.145) * (0.62 + openWeight * 0.38)
+        : 0;
+
+      this.alpha += (targetAlpha - this.alpha) * 0.08;
+      this.risk += (risk - this.risk) * 0.08;
+      this.moveId = typeof forecast?.moveId === 'string' ? forecast.moveId : 'mark';
+      this.signal = typeof forecast?.signal === 'string' ? forecast.signal : 'buried';
+      this.nextState = typeof forecast?.nextZone?.state === 'string' ? forecast.nextZone.state : 'listening';
+
+      drawMoveForecast(
+        graphics,
+        cuts,
+        t,
+        w,
+        h,
+        lookX,
+        lookY,
+        axis,
+        breathe,
+        this.alpha,
+        forecast,
+        forecastEnergy,
+        portraitFactor,
+      );
+    },
+  };
+}
+
+function drawMoveForecast(g, cuts, t, w, h, lookX, lookY, axis, breathe, alpha, forecast, energy, portraitFactor) {
+  g.clear();
+  g.alpha = alpha;
+  if (!forecast || !forecast.nextZone || alpha <= 0.004) return;
+
+  const floorX = w * ANCHOR.floorCircleX;
+  const floorY = h * ANCHOR.floorCircleY;
+  const anchor = getZoneLoomAnchor(forecast.zoneId, w, h, lookX, lookY);
+  const color = getMoveForecastColor(forecast);
+  const risk = clamp(Number(forecast.risk) || 0, 0, 1);
+  const visibility = clamp(Number(forecast.visibilityDelta) || 0, 0, 1);
+  const fracture = clamp(Number(forecast.fractureDelta) || 0, 0, 1);
+  const clarity = clamp(Number(forecast.clarityDelta) || 0, -0.35, 0.35);
+  const pressure = clamp(Number(forecast.pressureDelta) || 0, -0.35, 0.35);
+  const portraitDamp = 1 - portraitFactor * 0.24;
+  const axisPull = axis === 'x'
+    ? clamp(lookX / CAMERA.orbitLimitX, -1, 1)
+    : axis === 'y'
+      ? clamp(lookY / CAMERA.orbitLimitY, -1, 1) * 0.44
+      : 0;
+  const pulse = 0.5 + Math.sin(t * (0.38 + risk * 0.28) + anchor.phase) * 0.5;
+  const startX = floorX + axisPull * w * 0.012;
+  const startY = floorY - h * (0.01 + visibility * 0.012);
+  const controlX = (startX + anchor.x) * 0.5 + axisPull * w * (0.028 + energy * 0.02);
+  const controlY = Math.min(startY, anchor.y) - h * (0.038 + energy * 0.076 + risk * 0.018);
+  const lineAlpha = (0.032 + energy * 0.104 + pulse * 0.018) * portraitDamp;
+
+  g.lineStyle(0.65 + energy * 1.25 + risk * 0.62, color, lineAlpha * (color === 0xbcffb0 ? 0.68 : 1));
+  g.moveTo(startX, startY);
+  g.quadraticCurveTo(controlX, controlY, anchor.x, anchor.y);
+
+  g.lineStyle(0.48 + risk * 1.1, color, lineAlpha * 0.42);
+  g.drawEllipse(
+    anchor.x + axisPull * w * 0.004,
+    anchor.y,
+    w * anchor.rx * (0.72 + energy * 0.62 + pulse * 0.06),
+    h * anchor.ry * (0.6 + risk * 0.8 + fracture * 0.58),
+  );
+
+  for (const cut of cuts) {
+    const localPulse = Math.max(0, Math.sin(t * (0.24 + cut.depth * 0.28) + cut.phase));
+    const side = cut.side;
+    const reach = w * (0.026 + energy * 0.05 + Math.abs(cut.offset) * 0.035);
+    const x = anchor.x + side * reach * (0.4 + localPulse * 0.7) + axisPull * w * 0.004;
+    const y = anchor.y - h * (0.01 + cut.depth * 0.032 + cut.offset * 0.018);
+    const length = w * (0.012 + cut.depth * 0.018 + visibility * 0.018);
+    const alphaCut = (0.012 + energy * 0.045 + localPulse * 0.018 + fracture * 0.025) * portraitDamp;
+    const lean = h * (0.006 + risk * 0.014) * side;
+
+    g.lineStyle(cut.width + risk * 0.54, color, alphaCut * (color === 0xbcffb0 ? 0.72 : 1));
+    g.moveTo(x - length, y + lean * 0.2);
+    g.lineTo(x + length * (1 + pressure * 0.8), y - lean * (0.2 + clarity));
+  }
+
+  const floorColor = getZoneStateColor(forecast.nextZone.state);
+  const floorAlpha = (0.018 + energy * 0.056 + risk * 0.018 + breathe * 0.006) * portraitDamp;
+  g.lineStyle(0.52 + energy * 0.9, floorColor, floorAlpha);
+  g.moveTo(floorX - w * (0.055 + energy * 0.025), floorY - h * (0.01 + risk * 0.006));
+  g.quadraticCurveTo(
+    floorX + axisPull * w * 0.018,
+    floorY - h * (0.026 + energy * 0.024),
+    floorX + w * (0.065 + energy * 0.035),
+    floorY - h * (0.008 + fracture * 0.018),
+  );
+
+  if (forecast.signal === 'visible' || risk > 0.42) {
+    g.lineStyle(0.5 + risk * 0.85, color, floorAlpha * 0.58);
+    g.moveTo(controlX - w * 0.012, controlY + h * 0.008);
+    g.lineTo(controlX + w * (0.018 + risk * 0.026), controlY - h * (0.012 + fracture * 0.02));
+  }
+}
+
+function getMoveForecastColor(forecast) {
+  const clarity = Number(forecast.clarityDelta) || 0;
+  const pressure = Number(forecast.pressureDelta) || 0;
+  const fracture = Number(forecast.fractureDelta) || 0;
+  const risk = Number(forecast.risk) || 0;
+  if (fracture > 0.13 || risk > 0.56) return 0xffa25d;
+  if (clarity > 0.1 && pressure <= 0.02) return 0xbcffb0;
+  if (forecast.signal === 'visible') return 0xffa25d;
+  if (forecast.moveId === 'spare') return 0xbcffb0;
   return 0x9d63e5;
 }
 

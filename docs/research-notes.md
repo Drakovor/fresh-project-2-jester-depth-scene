@@ -9,6 +9,9 @@ This file keeps the external research anchors used for Hollow Mark decisions. It
 - MDN WebGL best practices: https://developer.mozilla.org/en-US/docs/Web/API/WebGL_API/WebGL_best_practices
 - MDN canvas compositing reference: https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/globalCompositeOperation
 - Henry Jenkins on game design as spatial/environmental storytelling: https://web.mit.edu/~21fms/People/henry3/games%26narrative.html
+- Nielsen Norman Group on visibility of system status: https://www.nngroup.com/articles/visibility-system-status/
+- Interaction Design Foundation on signifiers: https://ixdf.org/literature/topics/signifiers
+- Unity on diegetic UI: https://unity.com/blog/games/how-to-immerse-your-players-through-effective-ui-and-game-design
 
 ## Product Takeaways
 
@@ -45,3 +48,10 @@ This file keeps the external research anchors used for Hollow Mark decisions. It
 - Added a code-generated Zone Loom layer that renders selected zones and hot zones as room-material pressure lines rather than a flat minimap or streamer overlay.
 - Zone selection now changes the scene signal before any move is committed; committing a move increases trace/world pressure in the same scene language.
 - The visual check now verifies Zone Loom mode, active zone, zone state, alpha, intensity, hot-zone count, and a real selected-zone move.
+
+## Applied Move Forecast Pass
+
+- Added a move-forecast projection so selected actions preview risk, signal visibility, and next zone state before commitment.
+- Kept the preview diegetic: it renders as zone-bound floor and room-material consequence lines, not as a flat reward meter or streamer overlay.
+- Used visibility/status/signifier research to keep the mystery playable: the player can see what the selected move will probably do without draining the atmosphere into tutorial text.
+- The visual check now verifies move-forecast mode, axis lock, selected move, signal, next state, risk, alpha range, and that a riskier move changes the forecast before commit.

@@ -15,6 +15,7 @@ import {
   createMask,
   createWorldState,
   describeMaskShape,
+  describeMoveForecast,
   describeWorldZones,
   getPlayableSummary,
 } from './domain/hollow-mark-core.js';
@@ -41,11 +42,30 @@ let hydrated = false;
 function hydrate() {
   if (hydrated) return;
   hydrated = true;
+  const demoMode = getDemoMode();
   Object.assign(shellState, loadPresenceState());
-  Object.assign(hollowState, loadHollowMarkState());
+  if (demoMode === 'move-forecast') {
+    Object.assign(shellState, {
+      open: true,
+      ...createPresenceState('defiance'),
+    });
+  }
+  Object.assign(hollowState, loadHollowMarkState(demoMode));
 }
 
-function loadHollowMarkState() {
+function loadHollowMarkState(demoMode = getDemoMode()) {
+  if (demoMode === 'move-forecast') {
+    return {
+      open: true,
+      mask: createMask({ drive: 'defiance' }),
+      world: createWorldState(),
+      selectedZone: 'pistachio-static',
+      selectedMove: 'sever',
+      lastTrace: null,
+      error: '',
+    };
+  }
+
   try {
     const parsed = JSON.parse(window.localStorage.getItem(HOLLOW_MARK_STORAGE_KEY));
     if (!parsed || parsed.version !== HOLLOW_MARK_MODEL_VERSION) return {};
@@ -68,6 +88,14 @@ function loadHollowMarkState() {
     };
   } catch {
     return {};
+  }
+}
+
+function getDemoMode() {
+  try {
+    return new URLSearchParams(window.location.search).get('demo') ?? '';
+  } catch {
+    return '';
   }
 }
 
@@ -95,12 +123,15 @@ function emitHollowMark() {
   const maskShape = describeMaskShape(hollowState.mask);
   const zoneLoom = describeWorldZones(hollowState.world);
   const selectedZoneState = zoneLoom.find((zone) => zone.id === hollowState.selectedZone) ?? zoneLoom[0];
+  const moveForecast = getMoveForecast();
   window.__hollowMark = {
     version: HOLLOW_MARK_MODEL_VERSION,
+    open: hollowState.open,
     mask: { ...hollowState.mask },
     maskShape,
     zoneLoom,
     selectedZoneState,
+    moveForecast,
     selectedZone: hollowState.selectedZone,
     selectedMove: hollowState.selectedMove,
     summary,
@@ -163,6 +194,7 @@ function renderHollowMarkPanel() {
   const summary = getPlayableSummary(hollowState.world);
   const zoneLoom = describeWorldZones(hollowState.world);
   const maskShape = describeMaskShape(hollowState.mask);
+  const moveForecast = getMoveForecast();
   const traceList = collectVisibleTraces().slice(0, 5);
 
   return `
@@ -251,10 +283,11 @@ function renderHollowMarkPanel() {
           </div>
         </div>
 
-        <div class="move-preview" aria-live="polite">
+        <div class="move-preview" data-risk="${moveForecast.risk.toFixed(3)}" data-signal="${moveForecast.signal}" data-next-state="${moveForecast.nextZone.state}" aria-live="polite">
           <span>${selectedZone.label}</span>
           <b>${selectedMove.label}</b>
-          <small>${formatEffect(selectedMove)}</small>
+          <small>${formatForecast(moveForecast)}</small>
+          <i aria-hidden="true" style="--forecast-risk: ${moveForecast.risk}"></i>
         </div>
 
         <button class="commit-move" type="button" ${hollowState.mask.will < selectedMove.cost ? 'disabled' : ''}>
@@ -430,6 +463,24 @@ function getSelectedMove() {
   return MOVES.find((move) => move.id === hollowState.selectedMove) ?? MOVES[0];
 }
 
+function getMoveForecast() {
+  try {
+    return describeMoveForecast(
+      hollowState.world,
+      hollowState.mask,
+      hollowState.selectedMove,
+      hollowState.selectedZone,
+    );
+  } catch {
+    return describeMoveForecast(
+      createWorldState(),
+      createMask({ drive: hollowState.mask.drive }),
+      'mark',
+      'threshold-floor',
+    );
+  }
+}
+
 function collectVisibleTraces() {
   return hollowState.world.zones
     .flatMap((zone) => zone.visibleMarks.map((mark) => ({
@@ -440,11 +491,11 @@ function collectVisibleTraces() {
     .reverse();
 }
 
-function formatEffect(move) {
-  const pressure = signedPercent(move.effect.pressure);
-  const clarity = signedPercent(move.effect.clarity);
-  const fracture = signedPercent(move.effect.fracture);
-  return `pressure ${pressure} / clarity ${clarity} / fracture ${fracture}`;
+function formatForecast(forecast) {
+  const pressure = signedPercent(forecast.pressureDelta);
+  const clarity = signedPercent(forecast.clarityDelta);
+  const fracture = signedPercent(forecast.fractureDelta);
+  return `risk ${formatPercent(forecast.risk)} / ${forecast.signal} / ${forecast.nextZone.state} / pressure ${pressure} / clarity ${clarity} / fracture ${fracture}`;
 }
 
 function signedPercent(value) {

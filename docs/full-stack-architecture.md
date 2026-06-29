@@ -57,6 +57,7 @@ Needed next:
 - keep the character and scene as the art direction
 - let the world pulse subtly alter room material after actions
 - let selected zones and hot zones alter room material through Zone Loom
+- let selected moves preview their consequence through Move Forecast before commitment
 - keep the control panel collapsed by default so the image remains premium
 
 ### Mask
@@ -103,6 +104,8 @@ Moves:
 - Spare
 
 Every move writes an action log entry and derives visible consequences from it.
+
+Before a move is committed, the frontend should request or derive a **Move Forecast**. It previews pressure delta, clarity delta, fracture risk, signal visibility, and likely zone state. This forecast is not a promise of exact RNG outcome in future versions, but it must be honest enough that players understand the weight of their choice.
 
 ### Chronicle
 
@@ -227,6 +230,7 @@ Performance cache, not primary truth.
 - pulse
 - zone_state
 - zone_loom_projection
+- move_forecast_projection
 - created_at
 
 ## API Shape
