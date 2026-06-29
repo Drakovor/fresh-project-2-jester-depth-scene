@@ -354,6 +354,7 @@ function renderWorldSurface() {
     <section class="world-surface" data-view="${appState.activeView}" data-status="${appState.remoteStatus}" aria-label="Hollow Mark application surface">
       <div class="world-rail" role="tablist" aria-label="Hollow Mark views">
         ${renderSurfaceTab('world', 'World')}
+        ${renderSurfaceTab('mask', 'Mask')}
         ${renderSurfaceTab('chronicle', 'Chronicle')}
         ${renderSurfaceTab('creator', 'Creator')}
         <button class="surface-refresh" type="button" aria-label="Refresh Hollow Mark state">Refresh</button>
@@ -361,6 +362,7 @@ function renderWorldSurface() {
 
       <div class="surface-body">
         ${appState.activeView === 'world' ? renderWorldView(summary, zones, relations, consequenceSummary, ledgerActions) : ''}
+        ${appState.activeView === 'mask' ? renderMaskView(ledgerActions) : ''}
         ${appState.activeView === 'chronicle' ? renderChronicleView(chronicle, ledgerActions) : ''}
         ${appState.activeView === 'creator' ? renderCreatorView(creator, summary, zones, relations, consequenceSummary, ledgerActions) : ''}
       </div>
@@ -408,6 +410,47 @@ function renderWorldView(summary, zones, relations, consequenceSummary, ledgerAc
       </div>
       ${relations.length > 0 ? renderRelationList(relations.slice(0, 2)) : ''}
       ${renderConsequenceStrip(consequenceSummary)}
+    </div>
+  `;
+}
+
+function renderMaskView(ledgerActions) {
+  const maskShape = describeMaskShape(hollowState.mask);
+  const facets = Object.entries(hollowState.mask.shape?.facets ?? {})
+    .sort((left, right) => right[1] - left[1]);
+  const recentTrace = hollowState.lastTrace ?? ledgerActions[0]?.trace ?? null;
+
+  return `
+    <div class="surface-pane mask-pane">
+      <div class="surface-head">
+        <span class="surface-kicker">Mask</span>
+        <strong>${hollowState.mask.will}</strong>
+      </div>
+      <div class="creator-grid">
+        <div><span>Drive</span><b>${escapeText(hollowState.mask.drive)}</b></div>
+        <div><span>Shape</span><b>${escapeText(maskShape.silhouette)}</b></div>
+        <div><span>Surface</span><b>${escapeText(maskShape.surface)}</b></div>
+      </div>
+      <div class="surface-metrics">
+        ${renderSurfaceMetric('Visibility', maskShape.visibility)}
+        ${renderSurfaceMetric('Fracture', maskShape.fracture)}
+        ${renderSurfaceMetric('Will', Math.max(0, Math.min(1, hollowState.mask.will / 8)))}
+      </div>
+      <div class="mask-facet-grid">
+        ${facets.map(([facet, value]) => `
+          <span style="--facet-level: ${Number(value) || 0}">
+            ${escapeText(facet)}
+            <b>${formatPercent(value)}</b>
+            <i aria-hidden="true"></i>
+          </span>
+        `).join('')}
+      </div>
+      <div class="mask-mark-list">
+        <div><span>Marks</span><b>${hollowState.mask.marks.length}</b></div>
+        <div><span>Scars</span><b>${hollowState.mask.scars.length}</b></div>
+        <div><span>Last</span><b>${escapeText(recentTrace?.move ?? recentTrace?.moveId ?? 'none')}</b></div>
+      </div>
+      ${renderActionLedger(ledgerActions.slice(0, 3), 'Owned')}
     </div>
   `;
 }

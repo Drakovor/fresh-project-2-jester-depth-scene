@@ -232,6 +232,31 @@ async function routeApi(req, res, url) {
     return;
   }
 
+  if (url.pathname === '/api/world/me/marks' && req.method === 'GET') {
+    const store = await readStore();
+    const session = ensureSession(req, res, store);
+    const traces = store.world.zones
+      .flatMap((zone) => zone.traces.map((trace) => ({ ...trace, zoneLabel: zone.label })))
+      .filter((trace) => trace.maskId === session.mask.id)
+      .reverse();
+    await persistStore(store);
+    sendJson(res, 200, {
+      maskId: session.mask.id,
+      drive: session.mask.drive,
+      will: session.mask.will,
+      shape: describeMaskShape(session.mask),
+      marks: session.mask.marks,
+      scars: session.mask.scars,
+      traces: traces.slice(0, 20),
+      counts: {
+        marks: session.mask.marks.length,
+        scars: session.mask.scars.length,
+        traces: traces.length,
+      },
+    }, sessionHeader(session.id));
+    return;
+  }
+
   if (url.pathname === '/api/chronicle/public' && req.method === 'GET') {
     const store = await readStore();
     sendJson(res, 200, {
