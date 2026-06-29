@@ -40,6 +40,7 @@ No old assets are required. If those files are missing, the app renders a proced
 - Axis-bound volumetric slit haze adds depth in the room air without becoming stage lighting or covering the character lane.
 - The private threshold lens adds fine floor/air depth around the central circle only, reinforcing the feeling of entering the room without adding sacred, stage, or royal symbols.
 - Peripheral threshold pressure adds subtle responsive tension in side walls and floor cuts, keeping the center clear while making the room feel awake.
+- Axis-bound anamorphic depth shear may add thin optical edge/floor traces, but it must follow the camera rail and never become UI, stage beams, or central haze.
 - Cinematic side depth separation may sculpt darker side planes and thin glints, but it must stay behind the character and preserve the central clarity lane.
 - Non-UI directional presence memory may leave subtle traces from exploration, but it must read as the room remembering movement, never as badges, rewards, quests, or streamer overlay UI.
 - Cinematic negative fill may darken the room immediately behind the subject to sculpt clarity, but it must stay behind her and never become a visible black halo.

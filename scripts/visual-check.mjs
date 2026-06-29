@@ -347,6 +347,9 @@ function evaluateQualityGates(report) {
       assertGate(failures, sample.thresholdPressureMode === 'peripheral-threshold-pressure', `${name}/${sample.sample}: threshold pressure mode is ${sample.thresholdPressureMode}`);
       assertGate(failures, sample.thresholdPressureAxis === sample.cameraAxis, `${name}/${sample.sample}: threshold pressure axis ${sample.thresholdPressureAxis} does not match camera ${sample.cameraAxis}`);
       assertGate(failures, sample.thresholdPressureAlpha >= 0.27 && sample.thresholdPressureAlpha <= 0.42, `${name}/${sample.sample}: threshold pressure alpha out of range (${sample.thresholdPressureAlpha})`);
+      assertGate(failures, sample.depthShearMode === 'axis-bound-anamorphic-depth-shear', `${name}/${sample.sample}: depth shear mode is ${sample.depthShearMode}`);
+      assertGate(failures, sample.depthShearAxis === sample.cameraAxis, `${name}/${sample.sample}: depth shear axis ${sample.depthShearAxis} does not match camera ${sample.cameraAxis}`);
+      assertGate(failures, sample.depthShearAlpha >= 0.12 && sample.depthShearAlpha <= 0.26, `${name}/${sample.sample}: depth shear alpha out of range (${sample.depthShearAlpha})`);
       assertGate(failures, sample.sideSeparationMode === 'cinematic-side-depth-separation', `${name}/${sample.sample}: side separation mode is ${sample.sideSeparationMode}`);
       assertGate(failures, sample.sideSeparationAxis === sample.cameraAxis, `${name}/${sample.sample}: side separation axis ${sample.sideSeparationAxis} does not match camera ${sample.cameraAxis}`);
       assertGate(failures, sample.sideSeparationAlpha >= 0.13 && sample.sideSeparationAlpha <= 0.24, `${name}/${sample.sample}: side separation alpha out of range (${sample.sideSeparationAlpha})`);
@@ -524,6 +527,9 @@ async function readSceneState(page, sample) {
       thresholdPressureMode: document.body.dataset.thresholdPressureMode,
       thresholdPressureAxis: document.body.dataset.thresholdPressureAxis,
       thresholdPressureAlpha: Number(document.body.dataset.thresholdPressureAlpha),
+      depthShearMode: document.body.dataset.depthShearMode,
+      depthShearAxis: document.body.dataset.depthShearAxis,
+      depthShearAlpha: Number(document.body.dataset.depthShearAlpha),
       sideSeparationMode: document.body.dataset.sideSeparationMode,
       sideSeparationAxis: document.body.dataset.sideSeparationAxis,
       sideSeparationAlpha: Number(document.body.dataset.sideSeparationAlpha),

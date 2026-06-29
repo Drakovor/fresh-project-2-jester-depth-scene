@@ -204,6 +204,9 @@ midLayer.addChild(thresholdLens.graphics);
 const thresholdPressure = makeThresholdPressureSystem();
 midLayer.addChild(thresholdPressure.graphics);
 
+const depthShear = makeDepthShearSystem();
+midLayer.addChild(depthShear.graphics);
+
 const presenceTrace = makePresenceTraceSystem();
 midLayer.addChild(presenceTrace.graphics);
 midLayer.addChild(centralGlow);
@@ -482,6 +485,7 @@ function animateScene(dt) {
   focusAperture.update(t, w, h, lookX, lookY, orbit.axis, breathe, slowPulse);
   thresholdLens.update(t, w, h, lookX, lookY, orbit.axis, breathe, slowPulse);
   thresholdPressure.update(t, w, h, lookX, lookY, orbit.axis, breathe, slowPulse);
+  depthShear.update(t, w, h, lookX, lookY, orbit.axis, breathe, slowPulse, portraitFactor);
   presenceTrace.update(t, w, h, lookX, lookY, orbit.axis, breathe, slowPulse);
   edgeGrade.alpha = 0.62 + breathe * 0.05;
   clarityLane.position.set(w * 0.5 + lookX * w * 0.01, h * 0.5 + lookY * h * 0.006);
@@ -557,6 +561,9 @@ function animateScene(dt) {
   document.body.dataset.thresholdPressureMode = 'peripheral-threshold-pressure';
   document.body.dataset.thresholdPressureAxis = orbit.axis;
   document.body.dataset.thresholdPressureAlpha = thresholdPressure.graphics.alpha.toFixed(3);
+  document.body.dataset.depthShearMode = 'axis-bound-anamorphic-depth-shear';
+  document.body.dataset.depthShearAxis = orbit.axis;
+  document.body.dataset.depthShearAlpha = depthShear.graphics.alpha.toFixed(3);
   document.body.dataset.sideSeparationMode = 'cinematic-side-depth-separation';
   document.body.dataset.sideSeparationAxis = orbit.axis;
   document.body.dataset.sideSeparationAlpha = sideSeparation.alpha.toFixed(3);
@@ -1520,6 +1527,90 @@ function drawThresholdPressure(g, sideThreads, floorCuts, t, w, h, lookX, lookY,
     g.lineStyle(0.55 + active * 0.75, cut.color, alpha * (cut.color === 0xbcffb0 ? 0.66 : 1));
     g.moveTo(x - len, y);
     g.lineTo(x + len * 0.8, y + h * 0.004);
+  }
+}
+
+function makeDepthShearSystem() {
+  const graphics = new Graphics();
+  graphics.blendMode = BLEND_MODES.ADD;
+  const rng = createRng('axis-bound-anamorphic-depth-shear');
+  const sideNeedles = [];
+  const floorNeedles = [];
+
+  for (let i = 0; i < 30; i += 1) {
+    sideNeedles.push({
+      side: i % 2 === 0 ? -1 : 1,
+      lane: randRange(rng, 0.055, 0.21),
+      y: randRange(rng, 0.12, 0.79),
+      reach: randRange(rng, 0.045, 0.16),
+      depth: randRange(rng, 0.18, 1),
+      phase: randRange(rng, 0, Math.PI * 2),
+      color: i % 5 === 0 ? 0xbcffb0 : i % 3 === 0 ? 0xffa25d : 0x9d63e5,
+    });
+  }
+
+  for (let i = 0; i < 22; i += 1) {
+    floorNeedles.push({
+      side: i % 2 === 0 ? -1 : 1,
+      spread: randRange(rng, 0.28, 0.86),
+      depth: randRange(rng, 0.12, 0.94),
+      phase: randRange(rng, 0, Math.PI * 2),
+      color: i % 4 === 0 ? 0xffa25d : i % 4 === 1 ? 0xbcffb0 : 0x9d63e5,
+    });
+  }
+
+  return {
+    graphics,
+    update(t, w, h, lookX, lookY, axis, breathe, slowPulse, portraitFactor) {
+      drawDepthShear(graphics, sideNeedles, floorNeedles, t, w, h, lookX, lookY, axis, breathe, slowPulse, portraitFactor);
+    },
+  };
+}
+
+function drawDepthShear(g, sideNeedles, floorNeedles, t, w, h, lookX, lookY, axis, breathe, slowPulse, portraitFactor) {
+  const sideStrength = axis === 'x' ? Math.min(1, Math.abs(lookX) / CAMERA.orbitLimitX) : 0;
+  const verticalStrength = axis === 'y' ? Math.min(1, Math.abs(lookY) / CAMERA.orbitLimitY) : 0;
+  const active = Math.max(sideStrength, verticalStrength);
+  const floorX = w * ANCHOR.floorCircleX;
+  const floorY = h * ANCHOR.floorCircleY;
+  const vanishX = w * (0.53 - lookX * 0.014);
+  const vanishY = h * (0.47 + lookY * 0.012);
+
+  g.clear();
+  g.alpha = clamp(0.15 + breathe * 0.038 + active * 0.058 - portraitFactor * 0.026, 0.12, 0.25);
+
+  for (const needle of sideNeedles) {
+    const reveal = axis === 'x'
+      ? clamp(0.12 + needle.side * lookX / CAMERA.orbitLimitX, 0.02, 1)
+      : 0.14 + verticalStrength * 0.18;
+    const wave = Math.max(0, Math.sin(t * (0.22 + needle.depth * 0.18) + needle.phase));
+    const edgeX = needle.side < 0 ? w * needle.lane : w * (1 - needle.lane);
+    const y0 = h * needle.y + lookY * h * (0.006 + needle.depth * 0.012);
+    const x1 = vanishX + needle.side * w * (0.018 + needle.reach * 0.24) + lookX * w * 0.004;
+    const y1 = vanishY + h * (needle.y - 0.5) * 0.18 + Math.sin(t * 0.11 + needle.phase) * h * 0.004;
+    const controlX = edgeX + needle.side * w * (0.06 + needle.reach * (0.62 + reveal * 0.16));
+    const controlY = y0 * 0.62 + y1 * 0.38;
+    const alpha = (0.012 + reveal * 0.048 + wave * 0.018 + slowPulse * 0.006) * (needle.color === 0xbcffb0 ? 0.58 : 1);
+
+    g.lineStyle(0.42 + needle.depth * 0.9 + active * 0.28, needle.color, alpha);
+    g.moveTo(edgeX, y0);
+    g.quadraticCurveTo(controlX, controlY, x1, y1);
+  }
+
+  for (const needle of floorNeedles) {
+    const activeFloor = axis === 'y'
+      ? clamp(0.16 + Math.abs(lookY) / CAMERA.orbitLimitY, 0.08, 1)
+      : 0.16 + sideStrength * 0.28;
+    const wave = Math.max(0, Math.sin(t * 0.32 + needle.phase));
+    const x0 = floorX + needle.side * w * (0.16 + needle.spread * 0.18) + lookX * w * 0.012;
+    const x1 = floorX + needle.side * w * (0.26 + needle.spread * 0.31) + lookX * w * 0.018;
+    const y = floorY + h * (0.02 + needle.depth * 0.12 + Math.max(0, lookY) * 0.026);
+    const rise = h * (0.014 + needle.depth * 0.018 + verticalStrength * 0.018);
+    const alpha = (0.01 + activeFloor * 0.044 + wave * 0.018) * (needle.color === 0xbcffb0 ? 0.62 : 1);
+
+    g.lineStyle(0.48 + needle.depth * 0.86 + active * 0.22, needle.color, alpha);
+    g.moveTo(x0, y);
+    g.quadraticCurveTo((x0 + x1) * 0.5, y - rise, x1, y + h * 0.006);
   }
 }
 
