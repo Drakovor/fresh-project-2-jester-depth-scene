@@ -160,6 +160,9 @@ midLayer.filters = [glassRefraction.midFilter];
 const roomBreath = makeRoomBreathSystem();
 architectureLayer.addChild(roomBreath.graphics);
 
+const peripheralInterference = makePeripheralInterferenceSystem();
+architectureLayer.addChild(peripheralInterference.container);
+
 const arcReveal = makeArcRevealSystem();
 architectureLayer.addChild(arcReveal.container);
 
@@ -542,6 +545,7 @@ function animateScene(dt) {
   livingSignals.update(t, w, h, lookX, lookY, breathe, slowPulse);
   glassRefraction.update(t, w, h, lookX, lookY, orbit.axis, breathe, portraitFactor);
   roomBreath.update(t, w, h, lookX, lookY, breathe);
+  peripheralInterference.update(t, w, h, lookX, lookY, orbit.axis, breathe, slowPulse, portraitFactor);
   arcReveal.update(t, w, h, lookX, lookY, orbit.axis, breathe, slowPulse);
   volumetricDepth.update(t, w, h, lookX, lookY, orbit.axis, breathe, slowPulse);
   focusAperture.update(t, w, h, lookX, lookY, orbit.axis, breathe, slowPulse);
@@ -621,6 +625,9 @@ function animateScene(dt) {
   document.body.dataset.cameraCardinalLock = orbit.axis === 'center' || orbit.crossLeak < 0.045 ? 'true' : 'false';
   document.body.dataset.arcRevealMode = 'cardinal-environment-reveal';
   document.body.dataset.arcRevealAxis = orbit.axis;
+  document.body.dataset.peripheralInterferenceMode = 'peripheral-interference-veil';
+  document.body.dataset.peripheralInterferenceAxis = orbit.axis;
+  document.body.dataset.peripheralInterferenceAlpha = peripheralInterference.alpha.toFixed(3);
   document.body.dataset.focusApertureMode = 'peripheral-depth-focus';
   document.body.dataset.focusApertureAxis = orbit.axis;
   document.body.dataset.volumetricDepthMode = 'axis-bound-slit-haze';
@@ -1632,6 +1639,150 @@ function drawRoomBreath(g, ribs, sparks, t, w, h, lookX, lookY, breathe) {
     g.drawPolygon([x, y - size, x + size * 0.55, y, x, y + size, x - size * 0.55, y]);
     g.endFill();
   }
+}
+
+function makePeripheralInterferenceSystem() {
+  const container = new Container();
+  const shade = new Graphics();
+  const filaments = new Graphics();
+  shade.blendMode = BLEND_MODES.MULTIPLY;
+  filaments.blendMode = BLEND_MODES.ADD;
+  container.addChild(shade, filaments);
+
+  const rng = createRng('peripheral-interference-veil');
+  const bands = [];
+  const nodes = [];
+
+  for (let i = 0; i < 44; i += 1) {
+    bands.push({
+      side: i % 2 === 0 ? -1 : 1,
+      lane: randRange(rng, 0.045, 0.285),
+      y: randRange(rng, 0.09, 0.82),
+      depth: randRange(rng, 0.08, 1),
+      reach: randRange(rng, 0.035, 0.14),
+      phase: randRange(rng, 0, Math.PI * 2),
+      slant: randRange(rng, -0.028, 0.034),
+      color: i % 6 === 0 ? 0xbcffb0 : i % 4 === 0 ? 0xffa25d : 0x9d63e5,
+    });
+  }
+
+  for (let i = 0; i < 24; i += 1) {
+    nodes.push({
+      side: i % 2 === 0 ? -1 : 1,
+      lane: randRange(rng, 0.08, 0.34),
+      y: randRange(rng, 0.18, 0.76),
+      phase: randRange(rng, 0, Math.PI * 2),
+      size: randRange(rng, 1.8, 4.2),
+      color: i % 5 === 0 ? 0xbcffb0 : i % 3 === 0 ? 0xffa25d : 0x9d63e5,
+    });
+  }
+
+  return {
+    container,
+    alpha: 0,
+    update(t, w, h, lookX, lookY, axis, breathe, slowPulse, portraitFactor) {
+      this.alpha = drawPeripheralInterference(shade, filaments, bands, nodes, t, w, h, lookX, lookY, axis, breathe, slowPulse, portraitFactor);
+    },
+  };
+}
+
+function drawPeripheralInterference(shade, filaments, bands, nodes, t, w, h, lookX, lookY, axis, breathe, slowPulse, portraitFactor) {
+  const sideStrength = axis === 'x' ? Math.min(1, Math.abs(lookX) / CAMERA.orbitLimitX) : 0;
+  const verticalStrength = axis === 'y' ? Math.min(1, Math.abs(lookY) / CAMERA.orbitLimitY) : 0;
+  const active = Math.max(sideStrength, verticalStrength);
+  const alpha = clamp(0.07 + breathe * 0.014 + active * 0.04 - portraitFactor * 0.018, 0.05, 0.124);
+  const shadeAlpha = clamp(0.11 + active * 0.04 - portraitFactor * 0.035, 0.07, 0.16);
+  const vanishX = w * (0.53 - lookX * 0.012);
+  const vanishY = h * (0.48 + lookY * 0.014);
+
+  shade.clear();
+  filaments.clear();
+  shade.alpha = shadeAlpha;
+  filaments.alpha = alpha;
+
+  for (const side of [-1, 1]) {
+    const reveal = axis === 'x'
+      ? clamp(side * lookX / CAMERA.orbitLimitX, -0.18, 1)
+      : 0.15 + verticalStrength * 0.12;
+    const pressure = clamp(0.18 + active * 0.08 - reveal * 0.035, 0.12, 0.28);
+    const edgeX = side < 0 ? -w * 0.06 : w * 1.06;
+    const innerTop = side < 0 ? w * (0.15 + reveal * 0.035) : w * (0.85 - reveal * 0.035);
+    const innerMid = side < 0 ? w * (0.31 + reveal * 0.04) : w * (0.71 - reveal * 0.04);
+    const innerLow = side < 0 ? w * (0.2 + reveal * 0.032) : w * (0.84 - reveal * 0.032);
+
+    shade.beginFill(0x020104, pressure);
+    shade.drawPolygon([
+      edgeX,
+      -h * 0.08,
+      innerTop + lookX * w * 0.008,
+      h * 0.08,
+      innerMid,
+      h * (0.52 + lookY * 0.018),
+      innerLow + lookX * w * 0.01,
+      h * 1.08,
+      edgeX,
+      h * 1.08,
+    ]);
+    shade.endFill();
+  }
+
+  for (const band of bands) {
+    const reveal = axis === 'x'
+      ? clamp(0.16 + band.side * lookX / CAMERA.orbitLimitX, 0.04, 1)
+      : 0.18 + verticalStrength * 0.22;
+    const wave = Math.sin(t * (0.18 + band.depth * 0.14) + band.phase);
+    const beat = Math.max(0, Math.sin(t * (0.31 + band.depth * 0.1) + band.phase * 1.7));
+    const x0 = band.side < 0
+      ? w * (band.lane + reveal * 0.018)
+      : w * (1 - band.lane - reveal * 0.018);
+    const y0 = h * band.y + lookY * h * (0.004 + band.depth * 0.018) + wave * h * 0.004;
+    const len = w * band.reach * (0.62 + reveal * 0.44 + beat * 0.12);
+    const controlX = x0 + band.side * len * (0.7 + band.depth * 0.18);
+    const controlY = y0 + h * (band.slant + lookY * 0.014);
+    const x1 = x0 + band.side * len;
+    const y1 = y0 + h * (band.slant * 0.6);
+    const centerGuard = clamp((Math.abs(x0 - w * 0.5) / (w * 0.5) - 0.18) * 1.5, 0, 1);
+    const colorSoftener = band.color === 0xbcffb0 ? 0.52 : 1;
+    const localAlpha = (0.012 + reveal * 0.038 + beat * 0.024 + slowPulse * 0.006) * centerGuard * colorSoftener;
+
+    filaments.lineStyle(0.36 + band.depth * 0.86 + active * 0.18, band.color, localAlpha);
+    filaments.moveTo(x0, y0);
+    filaments.quadraticCurveTo(controlX, controlY, x1, y1);
+
+    if (band.depth > 0.58 && reveal > 0.22) {
+      filaments.lineStyle(0.28 + band.depth * 0.44, band.color, localAlpha * 0.42);
+      filaments.moveTo(x0 + band.side * w * 0.006, y0 + h * 0.012);
+      filaments.lineTo(vanishX + band.side * w * 0.04, vanishY + (band.y - 0.48) * h * 0.18);
+    }
+  }
+
+  for (const node of nodes) {
+    const reveal = axis === 'x'
+      ? clamp(0.12 + node.side * lookX / CAMERA.orbitLimitX, 0.03, 1)
+      : 0.14 + verticalStrength * 0.18;
+    const pulse = Math.max(0, Math.sin(t * 0.42 + node.phase));
+    const x = node.side < 0
+      ? w * (node.lane + reveal * 0.018)
+      : w * (1 - node.lane - reveal * 0.018);
+    const y = h * node.y + lookY * h * 0.012 + Math.sin(t * 0.11 + node.phase) * h * 0.003;
+    const size = node.size * (0.65 + pulse * 0.55 + active * 0.22);
+    const alphaNode = (0.018 + reveal * 0.035 + pulse * 0.034) * (node.color === 0xbcffb0 ? 0.5 : 0.84);
+
+    filaments.beginFill(node.color, alphaNode);
+    filaments.drawPolygon([
+      x,
+      y - size,
+      x + node.side * size * 0.62,
+      y,
+      x,
+      y + size,
+      x - node.side * size * 0.62,
+      y,
+    ]);
+    filaments.endFill();
+  }
+
+  return alpha;
 }
 
 function makeArcRevealSystem() {

@@ -404,6 +404,9 @@ function evaluateQualityGates(report) {
       }
       assertGate(failures, sample.arcRevealMode === 'cardinal-environment-reveal', `${name}/${sample.sample}: arc reveal mode is ${sample.arcRevealMode}`);
       assertGate(failures, sample.arcRevealAxis === sample.cameraAxis, `${name}/${sample.sample}: arc reveal axis ${sample.arcRevealAxis} does not match camera ${sample.cameraAxis}`);
+      assertGate(failures, sample.peripheralInterferenceMode === 'peripheral-interference-veil', `${name}/${sample.sample}: peripheral interference mode is ${sample.peripheralInterferenceMode}`);
+      assertGate(failures, sample.peripheralInterferenceAxis === sample.cameraAxis, `${name}/${sample.sample}: peripheral interference axis ${sample.peripheralInterferenceAxis} does not match camera ${sample.cameraAxis}`);
+      assertGate(failures, sample.peripheralInterferenceAlpha >= 0.045 && sample.peripheralInterferenceAlpha <= 0.13, `${name}/${sample.sample}: peripheral interference alpha out of range (${sample.peripheralInterferenceAlpha})`);
       assertGate(failures, sample.focusApertureMode === 'peripheral-depth-focus', `${name}/${sample.sample}: focus aperture mode is ${sample.focusApertureMode}`);
       assertGate(failures, sample.focusApertureAxis === sample.cameraAxis, `${name}/${sample.sample}: focus aperture axis ${sample.focusApertureAxis} does not match camera ${sample.cameraAxis}`);
       assertGate(failures, sample.volumetricDepthMode === 'axis-bound-slit-haze', `${name}/${sample.sample}: volumetric depth mode is ${sample.volumetricDepthMode}`);
@@ -636,6 +639,9 @@ async function readSceneState(page, sample) {
       cameraCardinalLock: document.body.dataset.cameraCardinalLock,
       arcRevealMode: document.body.dataset.arcRevealMode,
       arcRevealAxis: document.body.dataset.arcRevealAxis,
+      peripheralInterferenceMode: document.body.dataset.peripheralInterferenceMode,
+      peripheralInterferenceAxis: document.body.dataset.peripheralInterferenceAxis,
+      peripheralInterferenceAlpha: Number(document.body.dataset.peripheralInterferenceAlpha),
       focusApertureMode: document.body.dataset.focusApertureMode,
       focusApertureAxis: document.body.dataset.focusApertureAxis,
       volumetricDepthMode: document.body.dataset.volumetricDepthMode,

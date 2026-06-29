@@ -39,6 +39,7 @@ No old assets are required. If those files are missing, the app renders a proced
 - The camera uses a constrained single-axis cardinal arc, not a free 360 view; diagonal cursor input must resolve to one rail only, with zero visible cross-axis leak.
 - Touch input uses relative drag with capped camera catch-up, so placing or moving a finger cannot teleport the viewpoint; mobile must feel like the same scene camera as desktop, only touch-driven.
 - Cardinal reveal shutters and side reflections must stay behind the character and follow the same camera axis as the room arc.
+- Peripheral interference may add dark moire tension to side architecture, but must stay off the central character lane and never read as streamer glitch, party lighting, or UI feedback.
 - The peripheral depth focus aperture reinforces the sensation of entering the space while keeping the central character/floor lane readable.
 - Axis-bound volumetric slit haze adds depth in the room air without becoming stage lighting or covering the character lane.
 - Living glass refraction may subtly bend only the architecture and light layers, never the character or floor anchor.

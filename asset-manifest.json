@@ -9,6 +9,7 @@
     "touch_input": "Mobile touch uses relative drag with smoothed catch-up and a no-teleport gate; finger placement does not jump the viewpoint and fast drag eases into the same final camera amplitude.",
     "anchoring": "Character feet are projected from a background-layer point at the center floor circle.",
     "cardinal_reveal": "Code-generated reveal shutters, side glints, top wires, and floor sheens follow the same camera axis, adding left/right/up/down discovery without moving the character.",
+    "peripheral_interference": "Code-generated dark moire/interference veil lives on side architecture and distant surfaces, adding hidden optical tension without central clutter, streamer glitch language, or pale overlay.",
     "peripheral_focus": "Code-generated optical aperture threads and depth ellipses reinforce an entering-the-space sensation while keeping the central character and floor anchor clear.",
     "volumetric_depth": "Axis-bound slit haze and fine luminous cuts add atmospheric depth while avoiding stage lighting, sacred rays, or character-lane clutter.",
     "glass_refraction": "A procedural Pixi DisplacementFilter map subtly bends architecture and light layers only, adding living glass depth without moving the character, anchor, or UI.",
