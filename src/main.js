@@ -228,6 +228,9 @@ midLayer.addChild(depthShear.graphics);
 
 const presenceTrace = makePresenceTraceSystem();
 midLayer.addChild(presenceTrace.graphics);
+
+const hollowWorldTrace = makeHollowWorldTraceSystem();
+midLayer.addChild(hollowWorldTrace.graphics);
 midLayer.addChild(centralGlow);
 
 const cursorLight = new Sprite(textures.torch);
@@ -577,6 +580,7 @@ function animateScene(dt) {
   thresholdPressure.update(t, w, h, lookX, lookY, orbit.axis, breathe, slowPulse);
   depthShear.update(t, w, h, lookX, lookY, orbit.axis, breathe, slowPulse, portraitFactor);
   presenceTrace.update(t, w, h, lookX, lookY, orbit.axis, breathe, slowPulse);
+  hollowWorldTrace.update(t, w, h, lookX, lookY, orbit.axis, breathe, slowPulse, state.hollow, portraitFactor);
   edgeGrade.alpha = 0.62 + breathe * 0.05;
   clarityLane.position.set(w * 0.5 + lookX * w * 0.01, h * 0.5 + lookY * h * 0.006);
   clarityLane.scale.set(clarityLane.baseScale * (1.002 + Math.abs(lookX) * 0.006));
@@ -680,6 +684,10 @@ function animateScene(dt) {
   document.body.dataset.presenceTraceMode = 'non-ui-directional-presence-memory';
   document.body.dataset.presenceTraceAxis = orbit.axis;
   document.body.dataset.presenceTracePeak = presenceTrace.peak.toFixed(3);
+  document.body.dataset.hollowWorldTraceMode = 'diegetic-hollow-mark-world-trace';
+  document.body.dataset.hollowWorldTraceAxis = orbit.axis;
+  document.body.dataset.hollowWorldTraceEnergy = hollowWorldTrace.energy.toFixed(3);
+  document.body.dataset.hollowWorldTraceAlpha = hollowWorldTrace.alpha.toFixed(3);
   document.body.dataset.subjectMatteMode = 'cinematic-negative-fill-subject-clarity';
   document.body.dataset.subjectMatteAlpha = subjectMatte.alpha.toFixed(3);
   document.body.dataset.floorReflectionMode = 'scene-anchored-contact-reflection';
@@ -2912,6 +2920,147 @@ function drawPresenceTrace(g, scars, memory, active, t, w, h, lookX, lookY, brea
     g.lineStyle(0.55 + charge * 0.9, scar.color, alpha);
     g.moveTo(x - length, y);
     g.lineTo(x + length * (1 + Math.abs(lean)), y + h * scar.width * lean);
+  }
+}
+
+function makeHollowWorldTraceSystem() {
+  const graphics = new Graphics();
+  graphics.blendMode = BLEND_MODES.ADD;
+  const rng = createRng('diegetic-hollow-mark-world-trace');
+  const veins = [];
+  const witnessNodes = [];
+
+  for (let i = 0; i < 38; i += 1) {
+    veins.push({
+      side: i % 2 === 0 ? -1 : 1,
+      lane: randRange(rng, 0.18, 0.88),
+      y: randRange(rng, 0.18, 0.78),
+      depth: randRange(rng, 0.08, 1),
+      bend: randRange(rng, -0.22, 0.22),
+      phase: randRange(rng, 0, Math.PI * 2),
+      color: i % 7 === 0 ? 0xbcffb0 : i % 3 === 0 ? 0xffa25d : 0x9d63e5,
+    });
+  }
+
+  for (let i = 0; i < 12; i += 1) {
+    witnessNodes.push({
+      side: i % 2 === 0 ? -1 : 1,
+      x: randRange(rng, 0.08, 0.28),
+      y: randRange(rng, 0.18, 0.78),
+      radius: randRange(rng, 0.0024, 0.006),
+      phase: randRange(rng, 0, Math.PI * 2),
+      color: i % 4 === 0 ? 0xbcffb0 : i % 3 === 0 ? 0xffa25d : 0x9d63e5,
+    });
+  }
+
+  return {
+    graphics,
+    energy: 0,
+    alpha: 0,
+    update(t, w, h, lookX, lookY, axis, breathe, slowPulse, hollow, portraitFactor) {
+      const tick = Number(hollow?.tick) || 0;
+      const traceCount = Number(hollow?.visibleTraceCount) || 0;
+      const pressure = clamp(Number(hollow?.pressure) || 0, 0, 1);
+      const clarity = clamp(Number(hollow?.clarity) || 0, 0, 1);
+      const fracture = clamp(Number(hollow?.fracture) || 0, 0, 1);
+      const traceEnergy = clamp(traceCount * 0.09 + Math.min(tick, 16) * 0.018 + fracture * 0.46, 0, 1);
+      const pulse = 0.5 + Math.sin(t * (0.28 + pressure * 0.18) + tick * 0.7) * 0.5;
+
+      this.energy += (traceEnergy - this.energy) * 0.08;
+      this.alpha = this.energy < 0.01
+        ? 0
+        : clamp(0.035 + this.energy * 0.17 + pulse * 0.018, 0, 0.22);
+
+      drawHollowWorldTrace(
+        graphics,
+        veins,
+        witnessNodes,
+        t,
+        w,
+        h,
+        lookX,
+        lookY,
+        axis,
+        breathe,
+        slowPulse,
+        this.energy,
+        this.alpha,
+        pressure,
+        clarity,
+        fracture,
+        portraitFactor,
+      );
+    },
+  };
+}
+
+function drawHollowWorldTrace(g, veins, witnessNodes, t, w, h, lookX, lookY, axis, breathe, slowPulse, energy, alpha, pressure, clarity, fracture, portraitFactor) {
+  g.clear();
+  g.alpha = alpha;
+  if (energy < 0.01 || alpha <= 0) return;
+
+  const floorX = w * ANCHOR.floorCircleX;
+  const floorY = h * ANCHOR.floorCircleY;
+  const axisX = axis === 'x' ? Math.abs(lookX) / CAMERA.orbitLimitX : 0;
+  const axisY = axis === 'y' ? Math.abs(lookY) / CAMERA.orbitLimitY : 0;
+  const sideReveal = 0.28 + axisX * 0.36 + energy * 0.18;
+  const verticalReveal = 0.2 + axisY * 0.28 + pressure * 0.1;
+  const clarityDamp = 0.62 + clarity * 0.38;
+  const portraitDamp = 1 - portraitFactor * 0.28;
+
+  for (const vein of veins) {
+    const pulse = Math.max(0, Math.sin(t * (0.18 + vein.depth * 0.22) + vein.phase));
+    const sideStrength = vein.side < 0 ? clamp(-lookX / CAMERA.orbitLimitX, 0, 1) : clamp(lookX / CAMERA.orbitLimitX, 0, 1);
+    const reveal = clamp(sideReveal + sideStrength * 0.24 + verticalReveal * 0.12 + pulse * 0.08, 0, 1);
+    const x0 = floorX + vein.side * w * (0.045 + vein.depth * 0.018) + lookX * w * 0.004;
+    const y0 = floorY - h * (0.01 + vein.depth * 0.018) + lookY * h * 0.004;
+    const edgeX = vein.side < 0 ? w * vein.lane * 0.42 : w * (1 - vein.lane * 0.42);
+    const edgeY = h * (0.56 + vein.y * 0.32) + lookY * h * (0.008 + vein.depth * 0.008);
+    const controlX = floorX + vein.side * w * (0.08 + vein.depth * 0.18 + reveal * 0.08);
+    const controlY = floorY - h * (0.035 + vein.y * 0.2 + vein.bend * 0.03) + lookY * h * 0.012;
+    const lineAlpha = (0.018 + energy * 0.08 + pulse * 0.018 + fracture * 0.035) * reveal * clarityDamp * portraitDamp;
+    const lineWidth = 0.55 + vein.depth * 0.85 + energy * 1.1 + fracture * 0.7;
+
+    g.lineStyle(lineWidth, vein.color, lineAlpha * (vein.color === 0xbcffb0 ? 0.66 : 1));
+    g.moveTo(x0, y0);
+    g.quadraticCurveTo(controlX, controlY, edgeX, edgeY);
+
+    if (pressure > 0.5 && pulse > 0.7) {
+      g.lineStyle(Math.max(0.5, lineWidth * 0.48), vein.color, lineAlpha * 0.36);
+      g.moveTo(controlX - vein.side * w * 0.022, controlY + h * 0.006);
+      g.lineTo(controlX + vein.side * w * (0.026 + pressure * 0.028), controlY - h * (0.008 + fracture * 0.018));
+    }
+  }
+
+  for (const node of witnessNodes) {
+    const sideStrength = node.side < 0 ? clamp(-lookX / CAMERA.orbitLimitX, 0, 1) : clamp(lookX / CAMERA.orbitLimitX, 0, 1);
+    const pulse = 0.5 + Math.sin(t * 0.42 + node.phase + energy * 2.4) * 0.5;
+    const x = node.side < 0
+      ? w * node.x + lookX * w * 0.018
+      : w * (1 - node.x) + lookX * w * 0.018;
+    const y = h * node.y + lookY * h * 0.02;
+    const radius = Math.max(1.4, Math.min(w, h) * node.radius * (0.8 + energy * 1.4 + pulse * 0.5));
+    const nodeAlpha = (0.018 + energy * 0.09 + sideStrength * 0.035 + pressure * 0.018) * portraitDamp * (node.color === 0xbcffb0 ? 0.7 : 1);
+
+    g.beginFill(node.color, nodeAlpha);
+    g.drawEllipse(x, y, radius * (1.4 + pressure * 0.8), radius * (0.45 + fracture * 0.4));
+    g.endFill();
+  }
+
+  const floorPulse = 0.5 + Math.sin(t * 0.34 + energy * 4) * 0.5;
+  const ringAlpha = (0.02 + energy * 0.08 + fracture * 0.025 + floorPulse * 0.018) * portraitDamp;
+  g.lineStyle(0.7 + energy * 1.4, 0x9d63e5, ringAlpha);
+  g.drawEllipse(
+    floorX + lookX * w * 0.004,
+    floorY + lookY * h * 0.005,
+    w * (0.07 + energy * 0.08),
+    h * (0.014 + energy * 0.022),
+  );
+
+  if (fracture > 0.035) {
+    g.lineStyle(0.55 + fracture * 1.6, 0xffa25d, (0.018 + fracture * 0.11) * portraitDamp);
+    g.moveTo(floorX - w * (0.08 + fracture * 0.04), floorY - h * 0.018);
+    g.lineTo(floorX + w * (0.04 + pressure * 0.05), floorY - h * (0.024 + fracture * 0.024));
   }
 }
 

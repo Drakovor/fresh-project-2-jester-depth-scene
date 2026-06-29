@@ -6,6 +6,11 @@ Premium layered WebGL scene for the feminine gothic jester universe.
 
 The current product concept is [Hollow Mark](docs/hollow-mark-game-concept.md): an ambitious persistent world-game, not a small streamer widget. The scene remains the visual threshold, while the app direction moves toward Masks, zones, moves, traces, visible marks, and world consequences that can grow into a full-stack game.
 
+Planning references:
+
+- [Research Notes](docs/research-notes.md)
+- [Full-Stack Architecture](docs/full-stack-architecture.md)
+
 ## Local Work
 
 ```bash
@@ -56,6 +61,7 @@ No old assets are required. If those files are missing, the app renders a proced
 - Architectural crease occlusion may deepen wall/floor/ceiling joints with negative fill, but must protect the character lane and never become a black halo, stage mark, or pale overlay.
 - Directional contrast occlusion may deepen side walls, ceiling, and floor edges, but it must stay behind the character and never wash the room into pale haze.
 - Non-UI directional presence memory may leave subtle traces from exploration, but it must read as the room remembering movement, never as routine quests or streamer overlay UI.
+- Hollow Mark world traces may reveal consequence pressure after player moves, but they must stay diegetic, behind the character, and dark enough to preserve the premium scene clarity.
 - Cinematic negative fill may darken the room immediately behind the subject to sculpt clarity, but it must stay behind her and never become a visible black halo.
 - The scene-anchored contact reflection stays subtle and floor-bound so the character feels grounded without becoming a duplicated figure.
 - Scene-anchored contact pressure may deepen the foot/floor contact, but must stay under the character and never become a ritual circle, stage mark, or UI highlight.

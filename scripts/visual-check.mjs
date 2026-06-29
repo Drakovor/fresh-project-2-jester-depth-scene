@@ -73,7 +73,10 @@ async function checkViewport(browser, viewport, consoleMessages) {
     viewport: { width: viewport.width, height: viewport.height },
     deviceScaleFactor: 1,
   });
-  await page.addInitScript(() => localStorage.removeItem('jester-depth.presence.v1'));
+  await page.addInitScript(() => {
+    localStorage.removeItem('jester-depth.presence.v1');
+    localStorage.removeItem('hollow-mark.prototype.v1');
+  });
   const screenshotFile = fileURLToPath(new URL(`visual-check-${viewport.name}.png`, outDir));
   const motionAFile = fileURLToPath(new URL(`visual-motion-a-${viewport.name}.png`, outDir));
   const motionBFile = fileURLToPath(new URL(`visual-motion-b-${viewport.name}.png`, outDir));
@@ -434,6 +437,10 @@ function evaluateQualityGates(report) {
       assertGate(failures, sample.presenceTraceMode === 'non-ui-directional-presence-memory', `${name}/${sample.sample}: presence trace mode is ${sample.presenceTraceMode}`);
       assertGate(failures, sample.presenceTraceAxis === sample.cameraAxis, `${name}/${sample.sample}: presence trace axis ${sample.presenceTraceAxis} does not match camera ${sample.cameraAxis}`);
       assertGate(failures, sample.presenceTracePeak >= 0 && sample.presenceTracePeak <= 0.72, `${name}/${sample.sample}: presence trace peak out of range (${sample.presenceTracePeak})`);
+      assertGate(failures, sample.hollowWorldTraceMode === 'diegetic-hollow-mark-world-trace', `${name}/${sample.sample}: hollow world trace mode is ${sample.hollowWorldTraceMode}`);
+      assertGate(failures, sample.hollowWorldTraceAxis === sample.cameraAxis, `${name}/${sample.sample}: hollow world trace axis ${sample.hollowWorldTraceAxis} does not match camera ${sample.cameraAxis}`);
+      assertGate(failures, sample.hollowWorldTraceEnergy >= 0 && sample.hollowWorldTraceEnergy <= 1, `${name}/${sample.sample}: hollow world trace energy out of range (${sample.hollowWorldTraceEnergy})`);
+      assertGate(failures, sample.hollowWorldTraceAlpha >= 0 && sample.hollowWorldTraceAlpha <= 0.22, `${name}/${sample.sample}: hollow world trace alpha out of range (${sample.hollowWorldTraceAlpha})`);
       assertGate(failures, sample.subjectMatteMode === 'cinematic-negative-fill-subject-clarity', `${name}/${sample.sample}: subject matte mode is ${sample.subjectMatteMode}`);
       assertGate(failures, sample.subjectMatteAlpha >= 0.09 && sample.subjectMatteAlpha <= 0.17, `${name}/${sample.sample}: subject matte alpha out of range (${sample.subjectMatteAlpha})`);
       assertGate(failures, sample.floorReflectionMode === 'scene-anchored-contact-reflection', `${name}/${sample.sample}: floor reflection mode is ${sample.floorReflectionMode}`);
@@ -672,6 +679,10 @@ async function readSceneState(page, sample) {
       presenceTraceMode: document.body.dataset.presenceTraceMode,
       presenceTraceAxis: document.body.dataset.presenceTraceAxis,
       presenceTracePeak: Number(document.body.dataset.presenceTracePeak),
+      hollowWorldTraceMode: document.body.dataset.hollowWorldTraceMode,
+      hollowWorldTraceAxis: document.body.dataset.hollowWorldTraceAxis,
+      hollowWorldTraceEnergy: Number(document.body.dataset.hollowWorldTraceEnergy),
+      hollowWorldTraceAlpha: Number(document.body.dataset.hollowWorldTraceAlpha),
       subjectMatteMode: document.body.dataset.subjectMatteMode,
       subjectMatteAlpha: Number(document.body.dataset.subjectMatteAlpha),
       floorReflectionMode: document.body.dataset.floorReflectionMode,
